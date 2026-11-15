@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from gamdl_lyrics_retagger.cli import _find_m4a_files, build_parser
+from gamdl_lyrics_retagger.update import can_write_plain_text_fallback
 
 
 class CliFilterTests(unittest.TestCase):
@@ -41,6 +42,11 @@ class CliFilterTests(unittest.TestCase):
             result = _find_m4a_files(root, recursive=True, limit=None)
 
         self.assertEqual(result, [track])
+
+    def test_plain_text_fallback_requires_missing_atom(self) -> None:
+        self.assertTrue(can_write_plain_text_fallback(None))
+        self.assertFalse(can_write_plain_text_fallback(""))
+        self.assertFalse(can_write_plain_text_fallback("Existing lyrics"))
 
     def test_parser_accepts_match_and_log_file(self) -> None:
         args = build_parser().parse_args(

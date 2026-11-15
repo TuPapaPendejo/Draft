@@ -15,8 +15,9 @@ from . import __version__
 from .auth import open_gamdl_api
 from .mp4 import read_catalog_song_id, read_embedded_lyrics
 from .update import (
-    apply_embedded_lrc,
-    fetch_synchronized_lrc,
+    apply_embedded_lyrics,
+    can_write_plain_text_fallback,
+    fetch_best_lyrics,
     inspect_local_ttml,
     install_lyrics_api_observer,
 )
@@ -236,8 +237,8 @@ async def _run(args: argparse.Namespace) -> int:
                         continue
 
                     logger.info("CATALOG_ID path=%s cnID=%s", relative, song_id)
-                    lrc = await fetch_synchronized_lrc(api, song_id, logger=logger)
-                    if lrc is None:
+                    selection = await fetch_best_lyrics(api, song_id, logger=logger)
+                    if selection is None:
                         inspect_local_ttml(path, logger=logger)
                         logger.warning(
                             "FILE_SKIPPED path=%s cnID=%s reason=NO_USABLE_APPLE_LYRICS",
@@ -245,47 +246,70 @@ async def _run(args: argparse.Namespace) -> int:
                             song_id,
                         )
                         print(
-                            f"  OMITIDO: no se obtuvo LRC sincronizado (cnID={song_id}); "
-                            "consulta el LOG para conocer el motivo."
+                            f"  OMITIDO: Apple Music no proporcionó LRC ni texto utilizable "
+                            f"(cnID={song_id}); consulta el LOG."
                         )
                         skipped += 1
                         continue
 
                     current_lyrics = read_embedded_lyrics(path)
-                    if current_lyrics == lrc:
-                        logger.info(
-                            "FILE_UNCHANGED path=%s cnID=%s reason=LYRICS_ALREADY_MATCH",
+                    if selection.format == "text" and not can_write_plain_text_fallback(current_lyrics):
+                        logger.warning(
+                            "TEXT_FALLBACK_SKIPPED path=%s cnID=%s "
+                            "reason=EMBEDDED_LYRICS_ALREADY_PRESENT existing_chars=%d",
                             relative,
                             song_id,
+                            len(current_lyrics),
                         )
-                        print("  SIN CAMBIOS: el LRC ya coincide.")
+                        print(
+                            "  SIN CAMBIOS: se encontró ©lyr; se conserva porque "
+                            "la única alternativa disponible es texto sin sincronización."
+                        )
                         unchanged += 1
                         continue
 
-                    line_count = sum(1 for line in lrc.splitlines() if line.strip())
-                    if not args.apply:
+                    if current_lyrics == selection.text:
                         logger.info(
-                            "DRY_RUN_WOULD_UPDATE path=%s cnID=%s lines=%d lrc_chars=%d",
+                            "FILE_UNCHANGED path=%s cnID=%s reason=LYRICS_ALREADY_MATCH format=%s",
                             relative,
                             song_id,
-                            line_count,
-                            len(lrc),
+                            selection.format,
+                        )
+                        print("  SIN CAMBIOS: ©lyr ya contiene el contenido obtenido.")
+                        unchanged += 1
+                        continue
+
+                    line_count = sum(1 for line in selection.text.splitlines() if line.strip())
+                    format_label = {
+                        "enhanced-lrc": "Enhanced LRC",
+                        "lrc": "LRC",
+                        "text": "texto sin sincronización",
+                    }.get(selection.format, selection.format)
+                    if not args.apply:
+                        logger.info(
+                            "DRY_RUN_WOULD_UPDATE path=%s cnID=%s endpoint=%s format=%s lines=%d chars=%d",
+                            relative, song_id, selection.endpoint, selection.format,
+                            line_count, len(selection.text),
                         )
                         print(
-                            f"  PREVISTO: actualizar ©lyr con LRC "
+                            f"  PREVISTO: actualizar ©lyr con {format_label} "
                             f"({line_count} líneas; cnID={song_id})."
                         )
                         updated += 1
                         continue
 
-                    result = apply_embedded_lrc(
+                    result = apply_embedded_lyrics(
                         path,
-                        lyrics=lrc,
+                        lyrics=selection.text,
                         muxer=muxer,
+                        lyrics_format=selection.format,
                         logger=logger,
                     )
                     if result.status == "updated":
-                        print("  ACTUALIZADO: ©lyr escrito; mdat verificado; sin respaldo.")
+                        print(
+                            f"  ACTUALIZADO: ©lyr escrito ({format_label}); "
+                            "mdat verificado; sin respaldo."
+                        )
                         updated += 1
                     else:
                         print(f"  SIN CAMBIOS: {result.detail}")

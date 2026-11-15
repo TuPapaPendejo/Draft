@@ -1,7 +1,7 @@
 [project]
 name = "gamdl-lyrics-retagger"
-version = "0.3.0"
-description = "Refresh synchronized LRC lyrics in existing Apple Music M4A files using Gamdl 4.x without downloading audio."
+version = "0.4.0"
+description = "Refresh Apple Music LRC or plain-text lyrics in existing M4A files using Gamdl 4.x without downloading audio."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

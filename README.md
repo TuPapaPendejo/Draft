@@ -2,13 +2,13 @@
 
 Actualiza las letras sincronizadas dentro de archivos Apple Music `.m4a` ya descargados, sin volver a descargar ni recodificar el audio.
 
-Versión actual: `0.3.0` · Objetivo: Gamdl `4.x` · Entorno principal: openSUSE Tumbleweed en WSL.
+Versión actual: `0.4.0` · Objetivo: Gamdl `4.x` · Entorno principal: openSUSE Tumbleweed en WSL.
 
 ## Qué hace
 
-El programa lee el identificador de canción del átomo MP4 `cnID`, reutiliza la autenticación guardada por Gamdl en `~/.gamdl/config.yml`, consulta únicamente las letras mediante la API asíncrona de Gamdl, convierte el TTML de Apple Music a LRC estándar sincronizado por línea y actualiza el átomo incrustado `©lyr`.
+El programa lee el identificador de canción del átomo MP4 `cnID`, reutiliza la autenticación guardada por Gamdl en `~/.gamdl/config.yml`, consulta únicamente las letras mediante la API asíncrona de Gamdl, convierte el TTML de Apple Music a Enhanced LRC o LRC cuando hay sincronización completa; si no existe, usa texto plano solo cuando el átomo `©lyr` todavía no está presente.
 
-No solicita streams de audio, no descarga bytes multimedia, no descifra, no vuelve a multiplexar ni transcodifica pistas. Omite archivos sin `cnID` válido, sin letras sincronizadas o que no superen las verificaciones.
+No solicita streams de audio, no descarga bytes multimedia, no descifra, no vuelve a multiplexar ni transcodifica pistas. Omite archivos sin `cnID` válido, sin letras utilizables o que no superen las verificaciones. Nunca sustituye una etiqueta `©lyr` existente por texto sin sincronización.
 
 ## Seguridad e integridad
 
@@ -122,22 +122,27 @@ Puedes seleccionar cualquier otra carpeta mediante `--directory`; `/mnt/d/Prueba
 | `--match TEXT` | Procesa únicamente archivos cuya ruta relativa contenga el texto indicado (sin distinguir mayúsculas). | Todos |
 | `--recursive` | Incluye subcarpetas. | Activado |
 | `--no-recursive` | Busca únicamente en la carpeta indicada. | — |
-| `--log-file PATH` | Ubicación alternativa del LOG acumulativo. | `<directory>/.lyrics-retagger.log` |\n| `--apply` | Escribe los cambios después de verificar el archivo temporal. | Desactivado |
+| `--log-file PATH` | Ubicación alternativa del LOG acumulativo. | `<directory>/.lyrics-retagger.log` |
+| `--apply` | Escribe los cambios después de verificar el archivo temporal. | Desactivado |
 | `--version` | Muestra la versión del programa. | — |
 
-## Recuperación de letras sincronizadas
+## Jerarquía de recuperación de letras
 
-El actualizador primero consulta el endpoint estándar de Gamdl (`Song.get_lyrics(syllable=False)`). Si la respuesta no contiene marcas de tiempo para todas las líneas, o no devuelve un recurso de letras, intenta automáticamente el endpoint de letras con sincronización por palabra/sílaba (`Song.get_lyrics(syllable=True)`).
+1. **TTML estándar:** se consulta `Song.get_lyrics(syllable=False)`. Si todas las líneas tienen inicio temporal, se genera LRC; si también existen marcas por segmento, se conservan como Enhanced LRC.
+2. **Enhanced LRC:** si el TTML estándar no permite obtener sincronización completa, se consulta `Song.get_lyrics(syllable=True)` (`syllable-lyrics`) y se conservan las marcas por palabra/sílaba.
+3. **LRC estándar:** cuando el recurso alternativo solo tiene marcas por línea, se genera LRC normal. No se aceptan líneas parcialmente sincronizadas como sincronización completa.
+4. **Texto plano:** si ninguno de los recursos proporciona sincronización utilizable, `LyricsFormat.TEXT` extrae el texto del objeto `Lyrics` ya obtenido. No existe una petición independiente llamada `lyrics_text`.
 
-Aunque la segunda fuente pueda contener tiempos por palabra o sílaba, el programa la convierte a **LRC estándar por línea**: utiliza el primer instante temporal de cada línea. No escribe el formato enhanced-LRC. El LOG identifica qué endpoint produjo el resultado mediante `LYRICS_READY endpoint=standard` o `LYRICS_READY endpoint=syllable`.
+**El texto plano solo se escribe cuando el M4A no contiene el átomo `©lyr`.** Si el átomo ya existe, incluso vacío, se deja intacto y se registra `TEXT_FALLBACK_SKIPPED`. El TTML XML nunca se incrusta directamente en ese átomo.
 
-Si ninguno de los dos endpoints produce una línea de tiempo completa, la pista se omite. Un TTML local homónimo se inspecciona para diagnóstico, pero no se aplica automáticamente.
+El TTML local homónimo sigue siendo diagnóstico; no se utiliza como fuente automática.
 
 ## Detalles y limitaciones de esta versión
 
 - `cnID` es el identificador de catálogo de la **canción**. Los identificadores de álbum (`plID`) y artista (`atID`) no sirven como sustitutos para el endpoint de letras.
-- Esta versión genera LRC estándar con marcas de tiempo por línea. No solicita `enhanced-lrc` ni sincronización por palabra/sílaba.
-- Todas las líneas no vacías deben tener una marca de tiempo. Si la letra es parcial, de texto plano o no está disponible, el archivo se omite; nunca se inventan marcas de tiempo ni se degrada a texto.
+- El resultado sincronizado puede ser Enhanced LRC (marcas por palabra/sílaba) o LRC estándar (una marca por línea). Ambos se almacenan en `©lyr`.
+- Todas las líneas no vacías deben tener un tiempo para aceptar un resultado sincronizado; si no, se recurre a texto plano sin inventar marcas temporales.
+- El texto plano no reemplaza una etiqueta `©lyr` existente.
 - El LRC incrustado se almacena como texto en el átomo MP4 `©lyr`. La forma en que se presenta la sincronización depende del reproductor; algunos muestran literalmente las marcas de tiempo.
 - Esta versión no crea archivos `.lrc` externos ni respaldos permanentes. El registro de ejecución se guarda en `.lyrics-retagger.log`.
 - Apple Music puede no ofrecer letras para todas las canciones, tiendas o cuentas. El endpoint de letras utilizado por Gamdl es privado y puede cambiar independientemente de la API pública.

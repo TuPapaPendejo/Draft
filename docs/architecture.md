@@ -1,33 +1,21 @@
 # Arquitectura y flujo de procesamiento
 
 ```text
-Carpeta de M4A
-   |
-   +--> Mutagen lee cnID (ID de canción de catálogo)
-              |
-              v
-       Gamdl 4.x AppleMusicApi
-              |
-              +--> Song.from_id(cnID)
-              |
-              +--> Song.get_lyrics(syllable=False)
-                         |
-                  si no hay tiempos completos
-                         v
-              +--> Song.get_lyrics(syllable=True)
-                         |
-                         v
-                 TTML -> Lyrics de Gamdl -> LRC estándar
-                         |
-                         v
-             Copia temporal -> Muxer.tag(Tags(lyrics=LRC))
-                         |
-                         +--> vuelve a leer ©lyr
-                         +--> compara SHA-256 de mdat
-                         +--> os.replace() atómico; sin respaldo permanente
-                         +--> elimina el archivo temporal
-                         |
-                         +--> registra los detalles en .lyrics-retagger.log
+M4A -> Mutagen lee cnID -> Gamdl 4.x -> Song.from_id(cnID)
+                                      |
+                                      +-> get_lyrics(syllable=False): TTML estándar
+                                      |       +-> tiempos por segmento: Enhanced LRC
+                                      |       +-> tiempos solo por línea: LRC
+                                      |
+                                      +-> si no hay sincronización completa:
+                                              get_lyrics(syllable=True)
+                                              +-> tiempos por segmento: Enhanced LRC
+                                              +-> tiempos solo por línea: LRC
+                                              +-> sin tiempos: extraer texto
+                                                         |
+                                                         +-> escribir solo si ©lyr no existe
+M4A temporal -> Muxer.tag(Tags(lyrics=contenido)) -> verificar ©lyr y SHA-256 de mdat
+             -> os.replace() atómico -> limpiar temporal; sin respaldo permanente
 ```
 
 ## Límites entre módulos
@@ -35,16 +23,17 @@ Carpeta de M4A
 - `mp4.py` extrae el identificador de catálogo y verifica los datos multimedia del contenedor.
 - `auth.py` reutiliza la configuración existente de Gamdl y crea `AppleMusicApi` o `WrapperApi` según el método configurado.
 - `install_lyrics_api_observer()` registra el estado HTTP y la forma de las respuestas `standard` y `syllable`, sin almacenar sus cuerpos.
-- `fetch_synchronized_lrc()` intenta primero el TTML estándar y utiliza el endpoint de sincronización por palabra/sílaba como respaldo si faltan marcas de tiempo. El destino siempre es LRC estándar por línea.
-- `fetch_synchronized_lrc()` registra metadatos, consulta TTML, analiza y convierte a LRC mediante Gamdl.
-- `inspect_local_ttml()` busca un sidecar TTML homónimo cuando la consulta remota no produce LRC. Solo informa sobre su presencia y sincronización; no lo aplica.
-- `apply_embedded_lrc()` modifica únicamente el campo de letras de `gamdl.download.Tags`. El resto de campos quedan en `None` para que Gamdl los conserve.
+- `fetch_best_lyrics()` aplica la jerarquía: TTML estándar, endpoint `syllable-lyrics` y finalmente texto extraído de los objetos `Lyrics` ya recibidos.
+- Los resultados sincronizados se renderizan como `enhanced-lrc` cuando hay tiempos por segmento, o como `lrc` cuando únicamente hay tiempos por línea.
+- El formato `text` es el último recurso. Solo se permite escribirlo si `read_embedded_lyrics()` devuelve `None`, es decir, si el M4A no tiene el átomo `©lyr`. Incluso una etiqueta vacía ya existente se conserva.
+- `inspect_local_ttml()` busca un sidecar TTML homónimo cuando la API no produce contenido utilizable. Solo informa sobre su presencia y sincronización; no lo aplica.
+- `apply_embedded_lyrics()` modifica únicamente el campo de letras de `gamdl.download.Tags`. Los demás campos quedan en `None` para que Gamdl los conserve.
 - `cli.py` administra la búsqueda de archivos, la simulación, el modo de escritura, el LOG y el resumen por archivo.
 
 ## Política ante fallos
 
-El actualizador falla de forma conservadora. La ausencia de identificador, letras, sincronización completa o un átomo válido, así como cualquier discrepancia en `©lyr` o en los datos `mdat`, impide reemplazar el original. El M4A se copia a un archivo temporal en la misma carpeta, se etiqueta y se verifica antes de publicarse mediante reemplazo atómico. El temporal se elimina en un bloque `finally`; no se crea un respaldo permanente.
+El actualizador falla de forma conservadora. La ausencia de identificador, de letras, de contenido utilizable o de un átomo válido, así como cualquier discrepancia en `©lyr` o en los datos `mdat`, impide reemplazar el original. Las líneas parcialmente sincronizadas no se presentan como LRC completo. El M4A se copia a un archivo temporal, se etiqueta y se verifica antes de publicarse mediante reemplazo atómico. El temporal se elimina; no se crea un respaldo permanente.
 
 ## Registro
 
-El archivo `.lyrics-retagger.log` es acumulativo. En la versión 0.3.0 se registra por separado si la letra utilizable provino de `standard` o `syllable`. Cada ejecución registra la configuración no secreta, el estado de cada archivo, los metadatos de catálogo, los códigos HTTP, la presencia y longitud de TTML, los conteos de líneas sincronizadas, los hashes SHA-256 de `mdat`, las verificaciones del átomo `©lyr` y el resumen. No se registran texto de letras, TTML completo, cookies, tokens ni contraseñas.
+El LOG acumulativo registra endpoint, formato seleccionado, conteos de líneas y segmentos sincronizados, decisión sobre el fallback de texto, metadatos de catálogo, códigos HTTP, presencia y longitud de TTML, hashes de `mdat` y verificaciones de `©lyr`. No registra texto de letras, TTML completo, cookies, tokens ni contraseñas.

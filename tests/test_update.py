@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gamdl_lyrics_retagger.mp4 import MdatSignature
-from gamdl_lyrics_retagger.update import apply_embedded_lrc
+from gamdl_lyrics_retagger.update import apply_embedded_lyrics
 
 
 @dataclass
@@ -63,7 +63,7 @@ class ApplyLyricsTests(unittest.TestCase):
             "gamdl_lyrics_retagger.update.read_embedded_lyrics",
             side_effect=read_lyrics,
         ):
-            result = apply_embedded_lrc(
+            result = apply_embedded_lyrics(
                 self.source,
                 lyrics="[00:00.50]New synchronized line",
                 muxer=muxer,

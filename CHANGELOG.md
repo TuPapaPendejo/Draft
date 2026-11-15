@@ -1,6 +1,19 @@
 # Historial de cambios
 
-Los cambios relevantes se registran por versión. Cada commit del repositorio también describe puntualmente su modificación.
+## [0.4.0] - 2026-11-15
+
+### Añadido
+
+- Jerarquía de fuentes: TTML estándar, endpoint `syllable-lyrics` para Enhanced LRC/LRC y texto plano como último recurso.
+- Conserva sincronización por palabra/sílaba como Enhanced LRC cuando existe; utiliza LRC estándar si solo hay marcas por línea.
+- El texto plano solo se escribe cuando el M4A no contiene el átomo `©lyr`. Si ya existe, no se modifica y se registra `TEXT_FALLBACK_SKIPPED`.
+- Añadidas pruebas para fuentes estándar, endpoint syllable, Enhanced LRC, LRC, texto y preservación de etiquetas existentes.
+
+### Comportamiento conservado
+
+- No se incrusta TTML XML directamente en `©lyr`.
+- No se crean respaldos permanentes ni se altera el contenido de audio `mdat`.
+- El TTML local continúa siendo solo diagnóstico; todavía no se utiliza como fuente.
 
 ## [0.3.0] - 2026-11-15
 
@@ -15,7 +28,7 @@ Los cambios relevantes se registran por versión. Cada commit del repositorio ta
 
 - No descarga ni modifica audio; solo actualiza `©lyr`.
 - No produce enhanced-LRC; el resultado permanece como LRC estándar.
-- Si ninguno de los endpoints proporciona tiempos para todas las líneas con texto, omite la pista.
+- Si ninguno de los dos endpoints proporciona tiempos para todas las líneas con texto, omite la pista.
 
 ## [0.2.0] - 2026-11-15
 
@@ -27,12 +40,6 @@ Los cambios relevantes se registran por versión. Cada commit del repositorio ta
 - Añadida inspección diagnóstica de un sidecar `.ttml` del mismo nombre base cuando Apple Music no devuelve letras. No se usa automáticamente como fuente alternativa.
 - El LOG excluye texto de letras, TTML completo y credenciales.
 - Añadido el parámetro `--match` para ejecutar consultas diagnósticas sobre pistas seleccionadas por nombre o ruta.
-- Añadidas pruebas para observación segura de respuestas, estados HTTP 404, detección de TTML local, filtro de archivos y ausencia de respaldos.
-
-### Limitaciones
-
-- Las carpetas de respaldo creadas por versiones anteriores no se borran automáticamente.
-- Un TTML local se detecta solo si está junto al M4A y comparte el nombre base.
 
 ## [0.1.0] - 2026-11-14
 
@@ -45,12 +52,3 @@ Los cambios relevantes se registran por versión. Cada commit del repositorio ta
 - Simulación predeterminada; los cambios requieren el parámetro explícito `--apply`.
 - Copias de seguridad no sobrescribibles antes de sustituir archivos.
 - Verificación de `©lyr` y de la identidad byte a byte de los datos `mdat` antes de publicar el archivo temporal.
-- Rechazo de letras parcialmente sincronizadas: toda línea con texto debe tener marca de tiempo.
-- Documentación de instalación en WSL con `uv`, parámetros CLI, arquitectura, API upstream y 13 pruebas unitarias.
-
-### Limitaciones conocidas
-
-- Procesa archivos `.m4a` con un `cnID` legible.
-- Requiere que Apple Music devuelva letras con sincronización por línea completa; omite letras solo textuales, parcialmente sincronizadas o no disponibles.
-- No crea archivos `.lrc` externos.
-- La validación final contra una cuenta real de Apple Music debe realizarse manualmente con una pista de prueba.
