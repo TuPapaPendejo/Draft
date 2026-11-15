@@ -14,7 +14,7 @@ Los cambios relevantes se registran por versión. Cada commit del repositorio ta
 - Copias de seguridad no sobrescribibles antes de sustituir archivos.
 - Verificación de `©lyr` y de la identidad byte a byte de los datos `mdat` antes de publicar el archivo temporal.
 - Rechazo de letras parcialmente sincronizadas: toda línea con texto debe tener marca de tiempo.
-- Documentación de instalación en WSL con `uv`, parámetros CLI, arquitectura, API upstream y pruebas unitarias.
+- Documentación de instalación en WSL con `uv`, parámetros CLI, arquitectura, API upstream y 13 pruebas unitarias.
 
 ### Limitaciones conocidas
 
