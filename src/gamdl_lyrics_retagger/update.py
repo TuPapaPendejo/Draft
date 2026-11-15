@@ -155,7 +155,7 @@ async def fetch_synchronized_lrc(
         elif response.get("ttml_present") is False:
             reason = "RESPONSE_WITHOUT_TTML"
         else:
-            reason = "GAMDl_RETURNED_NO_LYRICS"
+            reason = "GAMDL_RETURNED_NO_LYRICS"
         _log(
             logger,
             logging.WARNING,
