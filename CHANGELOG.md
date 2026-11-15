@@ -13,11 +13,12 @@ All notable changes to this project are documented here. Version entries describ
 - Default simulation mode; changes require the explicit --apply flag.
 - Creates non-overwriting backups before replacement.
 - Verifies the embedded ©lyr atom and byte-identical mdat payloads before publishing a staged file.
-- Includes WSL/uv installation instructions, CLI reference, troubleshooting notes, and unit tests for the integrity guard.
+- Rejects transcripts with any non-empty line lacking a timestamp; does not downgrade partially synchronized text to LRC.
+- Includes WSL/uv installation instructions, CLI reference, troubleshooting notes, and 13 unit tests for catalog ID extraction, lyrics retrieval policy, backups, and integrity guards.
 
 ### Known limitations
 
 - Processes .m4a files with a readable cnID only.
-- Requires Apple Music to return line-synchronized lyrics; it skips text-only or unavailable lyrics.
+- Requires Apple Music to return fully line-synchronized lyrics; it skips text-only, partially synchronized, or unavailable lyrics.
 - Does not create external .lrc sidecar files.
 - API integration tests against a real Apple Music account remain a manual validation step.
