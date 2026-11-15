@@ -35,7 +35,7 @@ Las credenciales permanecen en memoria durante la ejecución. El actualizador no
 
 La implementación de letras de catálogo de Gamdl puede consultar dos endpoints AMP de Apple: `/v1/catalog/{storefront}/songs/{song_id}/lyrics` y `/v1/catalog/{storefront}/songs/{song_id}/syllable-lyrics`. El propio código upstream advierte que este endpoint es privado y puede cambiar independientemente de la superficie de API soportada por Gamdl. La disponibilidad de letras también depende de la canción, el storefront, los permisos de la cuenta y el idioma. Si no hay respuesta, TTML o marcas temporales por línea, el programa omite la pista; nunca inventa tiempos.
 
-El actualizador intenta primero `syllable=False` y recurre a `syllable=True` cuando la respuesta estándar carece de sincronización completa. El resultado incrustado sigue siendo LRC estándar por línea, nunca enhanced-LRC ni texto plano.
+El actualizador intenta primero `syllable=False` y recurre a `syllable=True` cuando la respuesta estándar carece de sincronización completa. El resultado incrustado sigue siendo LRC estándar por línea, nunca enhanced-LRC ni texto plano. El fallback no descarga el audio ni usa el TTML sidecar local.
 
 ## Compatibilidad de versiones
 
