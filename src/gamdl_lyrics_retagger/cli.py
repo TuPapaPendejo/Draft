@@ -78,6 +78,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Máximo de archivos M4A a revisar; útil para la primera prueba.",
     )
     parser.add_argument(
+        "--match",
+        help="Filtra por una parte del nombre o ruta relativa del archivo (sin distinguir mayúsculas).",
+    )
+    parser.add_argument(
         "--recursive",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -97,7 +101,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _find_m4a_files(directory: Path, *, recursive: bool, limit: int | None) -> list[Path]:
+def _find_m4a_files(
+    directory: Path,
+    *,
+    recursive: bool,
+    limit: int | None,
+    match: str | None = None,
+) -> list[Path]:
     iterator = directory.rglob("*") if recursive else directory.glob("*")
     files = [
         path
@@ -107,6 +117,13 @@ def _find_m4a_files(directory: Path, *, recursive: bool, limit: int | None) -> l
         and path.suffix.lower() == ".m4a"
         and ".lyrics-retagger-backups" not in path.parts
     ]
+    if match:
+        needle = match.casefold()
+        files = [
+            path
+            for path in files
+            if needle in path.relative_to(directory).as_posix().casefold()
+        ]
     files.sort(key=lambda item: str(item).casefold())
     return files[:limit] if limit is not None else files
 
@@ -130,7 +147,12 @@ async def _run(args: argparse.Namespace) -> int:
         print("ERROR: --storefront debe ser un código de dos letras.", file=sys.stderr)
         return 2
 
-    files = _find_m4a_files(root, recursive=args.recursive, limit=args.limit)
+    files = _find_m4a_files(
+        root,
+        recursive=args.recursive,
+        limit=args.limit,
+        match=args.match,
+    )
     if not files:
         print(f"No se encontraron archivos .m4a en: {root}")
         return 0
@@ -154,7 +176,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     logger.info(
         "RUN_START version=%s directory=%s config=%s mode=%s file_count=%d "
-        "storefront_override=%s language_override=%s backups=disabled",
+        "storefront_override=%s language_override=%s match_filter=%s backups=disabled",
         __version__,
         root,
         config_path,
@@ -162,6 +184,7 @@ async def _run(args: argparse.Namespace) -> int:
         len(files),
         args.storefront or "config/default",
         args.language or "config/default",
+        args.match or "none",
     )
 
     try:
