@@ -1,35 +1,37 @@
-# Architecture and processing flow
+# Arquitectura y flujo de procesamiento
 
-    M4A folder
-       |
-       +--> Mutagen reads cnID (song catalog ID)
-                 |
-                 v
-          Gamdl 4.x AppleMusicApi
-                 |
-                 +--> Song.from_id(cnID)
-                 |
-                 +--> Song.get_lyrics(syllable=False)
-                            |
-                            v
-                     TTML -> Gamdl Lyrics -> standard line LRC
-                            |
-                            v
-              Stage-copy M4A -> Gamdl Muxer.tag(Tags(lyrics=LRC))
-                            |
-                            +--> verify ©lyr read-back
-                            +--> verify mdat SHA-256 and byte count
-                            +--> backup original
-                            +--> atomic replace
+```text
+Carpeta de M4A
+   |
+   +--> Mutagen lee cnID (ID de canción de catálogo)
+              |
+              v
+       Gamdl 4.x AppleMusicApi
+              |
+              +--> Song.from_id(cnID)
+              |
+              +--> Song.get_lyrics()
+                         |
+                         v
+                 TTML -> Lyrics de Gamdl -> LRC estándar
+                         |
+                         v
+             Copia temporal -> Muxer.tag(Tags(lyrics=LRC))
+                         |
+                         +--> vuelve a leer ©lyr
+                         +--> compara SHA-256 de mdat
+                         +--> guarda el original como respaldo
+                         +--> reemplazo atómico
+```
 
-## Boundaries
+## Límites entre módulos
 
-- Catalog ID extraction and MP4 payload verification live in mp4.py.
-- Existing Gamdl authentication is translated to AppleMusicApi / WrapperApi constructors in auth.py.
-- fetch_synchronized_lrc() delegates TTML parsing and LRC rendering to Gamdl itself.
-- apply_embedded_lrc() changes only the lyrics field in a gamdl.download.Tags instance. Other fields are None and are preserved by Gamdl's tag writer.
-- The CLI owns discovery, dry-run/apply selection, and per-file reporting.
+- `mp4.py` extrae el identificador de catálogo y verifica los datos multimedia del contenedor.
+- `auth.py` reutiliza la configuración existente de Gamdl y crea `AppleMusicApi` o `WrapperApi` según el método configurado.
+- `fetch_synchronized_lrc()` delega en Gamdl la consulta de TTML, el análisis y la conversión a LRC.
+- `apply_embedded_lrc()` modifica únicamente el campo de letras de `gamdl.download.Tags`. El resto de campos quedan en `None` para que Gamdl los conserve.
+- `cli.py` administra la búsqueda de archivos, la simulación, el modo de escritura y el resumen por archivo.
 
-## Failure policy
+## Política ante fallos
 
-The updater fails closed. Missing IDs, absent lyrics, unsynchronized lyrics, invalid atoms, a mismatch in the resulting embedded text, or a changed mdat signature prevent replacement. Temporary files are removed in a finally block. The original file is backed up before its staged replacement is atomically published.
+El actualizador falla de forma conservadora. La ausencia de identificador, letras, sincronización completa o un átomo válido, así como cualquier discrepancia en `©lyr` o en los datos `mdat`, impide reemplazar el original. Los temporales se eliminan en un bloque `finally`. El respaldo se crea antes de publicar la copia etiquetada.
