@@ -98,6 +98,7 @@ async def open_gamdl_api(
                 "Gamdl no tiene un método de autenticación seleccionado. Ejecuta 'gamdl auth' y vuelve a intentarlo."
             )
 
+        api._retagger_auth_mode = mode
         await stack.enter_async_context(api)
         return stack, api
     except BaseException:
