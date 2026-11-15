@@ -9,6 +9,7 @@ import types
 import unittest
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from gamdl_lyrics_retagger.update import (
     install_lyrics_api_observer,
@@ -112,7 +113,7 @@ class LocalTtmlDiagnosticsTests(unittest.TestCase):
                     return cls(raw)
 
             fake_lyrics.Lyrics = ParsedLyrics
-            with unittest.mock.patch.dict(
+            with patch.dict(
                 sys.modules,
                 {
                     "gamdl": fake_gamdl,
