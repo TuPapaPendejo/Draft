@@ -60,6 +60,45 @@ class ApiObserverTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("other,ttml", output)
         self.assertNotIn("PRIVATE LYRIC TEXT", output)
 
+    async def test_observes_syllable_endpoint_separately(self) -> None:
+        class FakeApi:
+            storefront = "mx"
+            language = "en-US"
+
+            async def get_lyrics(self, song_id: str, *, language=None):
+                return {"data": []}
+
+            async def get_syllable_lyrics(
+                self,
+                song_id: str,
+                *,
+                language=None,
+                lyrics_language=None,
+                script=None,
+                extend=None,
+            ):
+                return {
+                    "data": [
+                        {
+                            "attributes": {
+                                "ttml": "<tt><p begin='1s'>private text</p></tt>"
+                            }
+                        }
+                    ]
+                }
+
+        api = FakeApi()
+        install_lyrics_api_observer(api, self.logger)
+        response = await api.get_syllable_lyrics("1444116875", language="en-US")
+        output = self.stream.getvalue()
+
+        self.assertEqual(len(response["data"]), 1)
+        self.assertIn("endpoint=syllable", output)
+        self.assertIn("LYRICS_RESPONSE", output)
+        self.assertIn("ttml_present=True", output)
+        self.assertNotIn("private text", output)
+        self.assertIn("syllable", api._lyrics_retagger_responses)
+
     async def test_logs_http_status_without_exposing_exception_body(self) -> None:
         class FakeApiError(Exception):
             status_code = 404
