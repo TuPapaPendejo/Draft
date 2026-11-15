@@ -92,7 +92,7 @@ class ApplyLyricsTests(unittest.TestCase):
             side_effect=lambda path: existing.get(path),
         ):
             with self.assertRaisesRegex(RuntimeError, "mdat cambió"):
-                apply_embedded_lrc(
+                apply_embedded_lyrics(
                     self.source,
                     lyrics="[00:00.50]New synchronized line",
                     muxer=muxer,
