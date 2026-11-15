@@ -1,4 +1,4 @@
-"""Safety tests for staged lyrics-only updates."""
+"""Safety tests for staged lyrics-only updates without backup creation."""
 
 from __future__ import annotations
 
@@ -38,7 +38,6 @@ class ApplyLyricsTests(unittest.TestCase):
         self.source.parent.mkdir()
         self.original_bytes = b"original MP4 file fixture"
         self.source.write_bytes(self.original_bytes)
-        self.backup_root = self.root / ".lyrics-retagger-backups"
         self.signature = MdatSignature("same-audio-digest", 12345, 1)
 
     def _install_fake_tags(self):
@@ -46,9 +45,11 @@ class ApplyLyricsTests(unittest.TestCase):
         download_module = types.ModuleType("gamdl.download")
         download_module.Tags = FakeTags
         gamdl_module.download = download_module
-        return patch.dict(sys.modules, {"gamdl": gamdl_module, "gamdl.download": download_module})
+        return patch.dict(
+            sys.modules, {"gamdl": gamdl_module, "gamdl.download": download_module}
+        )
 
-    def test_updates_only_lyrics_and_keeps_backup(self) -> None:
+    def test_updates_only_lyrics_without_creating_backup(self) -> None:
         existing = {self.source: "Old plain text"}
         muxer = FakeMuxer(existing)
 
@@ -56,24 +57,27 @@ class ApplyLyricsTests(unittest.TestCase):
             return existing.get(path)
 
         with self._install_fake_tags(), patch(
-            "gamdl_lyrics_retagger.update.mdat_signature", return_value=self.signature
+            "gamdl_lyrics_retagger.update.mdat_signature",
+            return_value=self.signature,
         ), patch(
-            "gamdl_lyrics_retagger.update.read_embedded_lyrics", side_effect=read_lyrics
+            "gamdl_lyrics_retagger.update.read_embedded_lyrics",
+            side_effect=read_lyrics,
         ):
             result = apply_embedded_lrc(
                 self.source,
-                root=self.root,
                 lyrics="[00:00.50]New synchronized line",
                 muxer=muxer,
-                backup_root=self.backup_root,
             )
 
         self.assertEqual(result.status, "updated")
         self.assertIn("[00:00.50]New synchronized line", existing.values())
-        self.assertEqual(muxer.received_tags, FakeTags(lyrics="[00:00.50]New synchronized line"))
-        self.assertIsNotNone(result.backup)
-        self.assertEqual(result.backup.read_bytes(), self.original_bytes)
+        self.assertEqual(
+            muxer.received_tags,
+            FakeTags(lyrics="[00:00.50]New synchronized line"),
+        )
+        self.assertIsNone(result.backup)
         self.assertEqual(self.source.read_bytes(), self.original_bytes)
+        self.assertFalse((self.root / ".lyrics-retagger-backups").exists())
         self.assertFalse(list(self.source.parent.glob(".*.lyrics-retagger-*")))
 
     def test_rejects_audio_payload_mismatch_without_replacing_source(self) -> None:
@@ -82,21 +86,21 @@ class ApplyLyricsTests(unittest.TestCase):
         signatures = iter([self.signature, MdatSignature("changed", 12345, 1)])
 
         with self._install_fake_tags(), patch(
-            "gamdl_lyrics_retagger.update.mdat_signature", side_effect=lambda _path: next(signatures)
+            "gamdl_lyrics_retagger.update.mdat_signature",
+            side_effect=lambda _path: next(signatures),
         ), patch(
-            "gamdl_lyrics_retagger.update.read_embedded_lyrics", side_effect=lambda path: existing.get(path)
+            "gamdl_lyrics_retagger.update.read_embedded_lyrics",
+            side_effect=lambda path: existing.get(path),
         ):
             with self.assertRaisesRegex(RuntimeError, "mdat cambió"):
                 apply_embedded_lrc(
                     self.source,
-                    root=self.root,
                     lyrics="[00:00.50]New synchronized line",
                     muxer=muxer,
-                    backup_root=self.backup_root,
                 )
 
         self.assertEqual(self.source.read_bytes(), self.original_bytes)
-        self.assertFalse(self.backup_root.exists())
+        self.assertFalse((self.root / ".lyrics-retagger-backups").exists())
         self.assertFalse(list(self.source.parent.glob(".*.lyrics-retagger-*")))
 
 
