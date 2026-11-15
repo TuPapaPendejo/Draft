@@ -228,7 +228,15 @@ async def fetch_best_lyrics(api: Any, song_id: str, *, logger: logging.Logger | 
         return None
 
     # First source: Apple standard TTML.
-    standard = await song.get_lyrics(syllable=False, language=language)
+    try:
+        standard = await song.get_lyrics(syllable=False, language=language)
+    except Exception as exc:
+        standard = None
+        _log(
+            logger, logging.WARNING,
+            "LYRICS_ENDPOINT_ERROR song_id=%s endpoint=standard error_type=%s status_code=%s",
+            song_id, type(exc).__name__, getattr(exc, "status_code", "unknown"),
+        )
     standard_profile = _lyrics_profile(standard) if standard is not None else (0, 0, 0, 0, 0)
     stotal, stimed, suntimed, _, _ = standard_profile
     if standard is not None and stotal and not suntimed:
@@ -252,7 +260,15 @@ async def fetch_best_lyrics(api: Any, song_id: str, *, logger: logging.Logger | 
     # Second source: word/syllable-timed TTML; prefer Enhanced LRC, then line LRC.
     _log(logger, logging.INFO, "LYRICS_FALLBACK_ATTEMPT song_id=%s endpoint=syllable", song_id)
     responses.pop("syllable", None)
-    syllable = await song.get_lyrics(syllable=True, language=language)
+    try:
+        syllable = await song.get_lyrics(syllable=True, language=language)
+    except Exception as exc:
+        syllable = None
+        _log(
+            logger, logging.WARNING,
+            "LYRICS_ENDPOINT_ERROR song_id=%s endpoint=syllable error_type=%s status_code=%s",
+            song_id, type(exc).__name__, getattr(exc, "status_code", "unknown"),
+        )
     syllable_profile = _lyrics_profile(syllable) if syllable is not None else (0, 0, 0, 0, 0)
     ytotal, ytimed, yuntimed, _, _ = syllable_profile
     if syllable is not None and ytotal and not yuntimed:

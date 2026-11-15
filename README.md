@@ -1,8 +1,8 @@
 # Actualizador de letras para Gamdl
 
-Actualiza las letras sincronizadas dentro de archivos Apple Music `.m4a` ya descargados, sin volver a descargar ni recodificar el audio.
+Actualiza las letras de archivos Apple Music `.m4a` ya descargados, con preferencia por sincronización LRC y texto plano como último recurso, sin volver a descargar ni recodificar el audio.
 
-Versión actual: `0.4.0` · Objetivo: Gamdl `4.x` · Entorno principal: openSUSE Tumbleweed en WSL.
+Versión actual: `0.4.1` · Objetivo: Gamdl `4.x` · Entorno principal: openSUSE Tumbleweed en WSL.
 
 ## Qué hace
 

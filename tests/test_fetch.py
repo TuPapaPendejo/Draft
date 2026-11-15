@@ -20,13 +20,20 @@ class Lyrics:
         self.formats.append(fmt.value)
         return {Fmt.LRC:self.lrc,Fmt.ENHANCED_LRC:self.enh,Fmt.TEXT:self.plain}[fmt]
 class SongInst:
-    def __init__(self,standard,syllable=None,metadata=None):
+    def __init__(self,standard,syllable=None,metadata=None,standard_error=None,syllable_error=None):
         self.standard=standard; self.syllable=syllable
+        self.standard_error=standard_error; self.syllable_error=syllable_error
         self.metadata=metadata or {"attributes":{"name":"Test","artistName":"Artist","isrc":"USAAA0000001","hasLyrics":True}}
         self.calls=[]
     async def get_metadata(self): return self.metadata
     async def get_lyrics(self,**kwargs):
-        self.calls.append(kwargs.copy()); return self.syllable if kwargs.get("syllable") else self.standard
+        self.calls.append(kwargs.copy())
+        error=self.syllable_error if kwargs.get("syllable") else self.standard_error
+        if error is not None: raise error
+        return self.syllable if kwargs.get("syllable") else self.standard
+class FakeApiError(Exception):
+    status_code=404
+
 class Song:
     instance=None
     @classmethod
@@ -86,6 +93,23 @@ class FetchTests(unittest.IsolatedAsyncioTestCase):
         Song.instance=SongInst(None)
         with self.patch_gamdl(): result=await fetch_best_lyrics(api,"10")
         self.assertIsNone(result); self.assertEqual(len(Song.instance.calls),2)
+    async def test_standard_endpoint_http_error_still_tries_syllable(self):
+        api=types.SimpleNamespace(language="en-US",_lyrics_retagger_responses={})
+        syll=Lyrics([Line("timed",100)])
+        Song.instance=SongInst(None,syll,standard_error=FakeApiError("not found"))
+        with self.patch_gamdl(): result=await fetch_best_lyrics(api,"10")
+        self.assertEqual((result.endpoint,result.format),("syllable","lrc"))
+        self.assertEqual(len(Song.instance.calls),2)
+
+    async def test_syllable_endpoint_http_error_still_uses_standard_text(self):
+        api=types.SimpleNamespace(language="en-US",_lyrics_retagger_responses={})
+        standard=Lyrics([Line("untimed",None)],plain="Unsychronized words")
+        Song.instance=SongInst(standard,None,syllable_error=FakeApiError("not found"))
+        with self.patch_gamdl(): result=await fetch_best_lyrics(api,"10")
+        self.assertEqual((result.endpoint,result.format,result.text),
+                         ("standard","text","Unsychronized words"))
+        self.assertEqual(len(Song.instance.calls),2)
+
     async def test_catalog_has_no_lyrics(self):
         api=types.SimpleNamespace(language="en-US",_lyrics_retagger_responses={})
         Song.instance=SongInst(Lyrics([Line("A",1)]),metadata={"attributes":{"hasLyrics":False}})

@@ -1,5 +1,14 @@
 # Historial de cambios
 
+## [0.4.1] - 2026-11-15
+
+### Corregido
+
+- Los errores HTTP o de consulta del endpoint estándar ya no impiden intentar `syllable-lyrics`.
+- Los errores del endpoint `syllable-lyrics` ya no impiden utilizar el texto plano del TTML estándar que se haya recuperado.
+- Añadidas pruebas para fallos independientes de ambos endpoints.
+
+
 ## [0.4.0] - 2026-11-15
 
 ### Añadido
