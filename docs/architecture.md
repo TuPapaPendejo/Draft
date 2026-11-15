@@ -34,4 +34,4 @@ Carpeta de M4A
 
 ## Política ante fallos
 
-El actualizador falla de forma conservadora. La ausencia de identificador, letras, sincronización completa o un átomo válido, así como cualquier discrepancia en `©lyr` o en los datos `mdat`, impide reemplazar el original. Los temporales se eliminan en un bloque `finally`. El respaldo se crea antes de publicar la copia etiquetada.
+El actualizador falla de forma conservadora. La ausencia de identificador, letras, sincronización completa o un átomo válido, así como cualquier discrepancia en `©lyr` o en los datos `mdat`, impide reemplazar el original. Los temporales se eliminan en un bloque `finally`. No se crea un respaldo permanente. El archivo temporal se elimina en un bloque `finally`; el LOG conserva los detalles de la operación.
