@@ -148,7 +148,7 @@ def _response_reason(response: dict[str, Any]) -> str:
         return "EMPTY_LYRICS_DATA"
     if response.get("ttml_present") is False:
         return "RESPONSE_WITHOUT_TTML"
-    return "GAMDl_RETURNED_NO_LYRICS"
+    return "GAMDL_RETURNED_NO_LYRICS"
 
 
 async def fetch_synchronized_lrc(
