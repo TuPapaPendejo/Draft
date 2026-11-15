@@ -62,6 +62,12 @@ uv run gamdl-lyrics-retagger --directory /mnt/d/Pruebas --limit 1
 
 El programa mostrará si la pista tiene `cnID`, si Apple Music devuelve letras sincronizadas y si se propone actualizar `©lyr`. No realizará cambios.
 
+Para revisar únicamente una pista concreta por su nombre o parte de la ruta (útil para diagnosticar un archivo omitido):
+
+```bash
+uv run gamdl-lyrics-retagger --directory /mnt/d/Pruebas --match 'Baby Come On (Acoustic Version)'
+```
+
 Para revisar todos los M4A de la carpeta y sus subcarpetas:
 
 ```bash
@@ -113,6 +119,7 @@ Puedes seleccionar cualquier otra carpeta mediante `--directory`; `/mnt/d/Prueba
 | `--storefront XX` | Sobrescribe el storefront de Apple Music, por ejemplo `mx` o `us`. | Configuración de Gamdl / valor detectado |
 | `--language TAG` | Sobrescribe el idioma de metadatos/letras, por ejemplo `es-MX`. | `auth.language` o `en-US` |
 | `--limit N` | Limita la cantidad de M4A que se inspeccionan. Útil para la prueba inicial. | Sin límite |
+| `--match TEXT` | Procesa únicamente archivos cuya ruta relativa contenga el texto indicado (sin distinguir mayúsculas). | Todos |
 | `--recursive` | Incluye subcarpetas. | Activado |
 | `--no-recursive` | Busca únicamente en la carpeta indicada. | — |
 | `--log-file PATH` | Ubicación alternativa del LOG acumulativo. | `<directory>/.lyrics-retagger.log` |\n| `--apply` | Escribe los cambios después de verificar el archivo temporal. | Desactivado |
@@ -121,7 +128,7 @@ Puedes seleccionar cualquier otra carpeta mediante `--directory`; `/mnt/d/Prueba
 ## Detalles y limitaciones de esta versión
 
 - `cnID` es el identificador de catálogo de la **canción**. Los identificadores de álbum (`plID`) y artista (`atID`) no sirven como sustitutos para el endpoint de letras.
-- La primera versión genera LRC estándar con marcas de tiempo por línea. No solicita `enhanced-lrc` ni sincronización por palabra/sílaba.
+- Esta versión genera LRC estándar con marcas de tiempo por línea. No solicita `enhanced-lrc` ni sincronización por palabra/sílaba.
 - Todas las líneas no vacías deben tener una marca de tiempo. Si la letra es parcial, de texto plano o no está disponible, el archivo se omite; nunca se inventan marcas de tiempo ni se degrada a texto.
 - El LRC incrustado se almacena como texto en el átomo MP4 `©lyr`. La forma en que se presenta la sincronización depende del reproductor; algunos muestran literalmente las marcas de tiempo.
 - Esta versión no crea archivos `.lrc` externos ni respaldos permanentes. El registro de ejecución se guarda en `.lyrics-retagger.log`.
