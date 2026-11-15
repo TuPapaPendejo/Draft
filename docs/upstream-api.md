@@ -18,7 +18,7 @@ Este proyecto apunta a la rama fuente `4.0` de Gamdl (el `pyproject.toml` inspec
 3. `await song.get_lyrics(syllable=False, language=api.language)` solicita a Gamdl las letras TTML estándar. Es una consulta de metadatos/letras.
 4. `Lyrics.render(LyricsFormat.LRC, embedded=False)` convierte las marcas de tiempo TTML de cada línea en marcas LRC `[mm:ss.xx]`. Con `embedded=False`, Gamdl no degrada silenciosamente el resultado a texto plano si no puede producir LRC sincronizado.
 5. `Muxer.tag(staged_path, tags=Tags(lyrics=lrc))` escribe únicamente el campo de letras. Los demás campos quedan en `None`, que el etiquetador de Gamdl trata como «no modificar».
-6. El programa vuelve a leer el átomo de letras, verifica la identidad de los datos `mdat`, guarda una copia del original y solo entonces reemplaza la ruta original.
+6. El programa vuelve a leer el átomo de letras, verifica la identidad de los datos `mdat`, publica la copia temporal mediante `os.replace()` solo después de ambas verificaciones; no crea un respaldo permanente.
 
 ## Reutilización de autenticación
 
@@ -28,7 +28,7 @@ El programa lee `~/.gamdl/config.yml` y admite los valores de `auth.mode` de Gam
 - `media-user-token`: `AppleMusicApi.create(media_user_token=..., ...)`.
 - `wrapper`: `WrapperApi.create(...)` y después `AppleMusicApi.from_wrapper(...)`.
 
-Las credenciales permanecen en memoria durante la ejecución. El actualizador no cambia el archivo de configuración de Gamdl ni escribe tokens en los registros. En modo `wrapper`, el servicio Wrapper v2 debe estar disponible y autenticado previamente.
+Las credenciales permanecen en memoria durante la ejecución. El actualizador no cambia el archivo de configuración de Gamdl ni escribe tokens en los registros. El LOG registra códigos HTTP y forma de la respuesta, nunca sus cuerpos ni el TTML. En modo `wrapper`, el servicio Wrapper v2 debe estar disponible y autenticado previamente.
 
 ## Disponibilidad y advertencias sobre el endpoint privado
 
