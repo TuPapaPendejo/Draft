@@ -15,10 +15,11 @@ Este proyecto apunta a la rama fuente `4.0` de Gamdl (el `pyproject.toml` inspec
 
 1. Mutagen lee `cnID` del M4A local. Es el ID de catálogo de la **canción**. Los IDs de álbum y artista no se usan como sustitutos.
 2. `Song.from_id(song_id, api=api)` crea un objeto diferido. Esta operación no resuelve ni descarga audio.
-3. `await song.get_lyrics(syllable=False, language=api.language)` solicita a Gamdl las letras TTML estándar. Es una consulta de metadatos/letras.
-4. `Lyrics.render(LyricsFormat.LRC, embedded=False)` convierte las marcas de tiempo TTML de cada línea en marcas LRC `[mm:ss.xx]`. Con `embedded=False`, Gamdl no degrada silenciosamente el resultado a texto plano si no puede producir LRC sincronizado.
-5. `Muxer.tag(staged_path, tags=Tags(lyrics=lrc))` escribe únicamente el campo de letras. Los demás campos quedan en `None`, que el etiquetador de Gamdl trata como «no modificar».
-6. El programa vuelve a leer el átomo de letras, verifica la identidad de los datos `mdat`, publica la copia temporal mediante `os.replace()` solo después de ambas verificaciones; no crea un respaldo permanente.
+3. `await song.get_lyrics(syllable=False, language=api.language)` solicita primero las letras TTML estándar.
+4. Si el TTML estándar no tiene marcas de tiempo en todas las líneas con texto, `await song.get_lyrics(syllable=True, language=api.language)` utiliza el endpoint `syllable-lyrics` de Gamdl. La API de Gamdl analiza las marcas de tiempo de los elementos `span` y calcula el inicio de cada línea desde su primer segmento temporizado.
+5. `Lyrics.render(LyricsFormat.LRC, embedded=False)` convierte la fuente seleccionada en LRC estándar `[mm:ss.xx]`. Aunque la fuente alternativa pueda tener temporización por palabra/sílaba, `LyricsFormat.LRC` desactiva la salida enhanced y conserva una marca de tiempo por línea.
+6. `Muxer.tag(staged_path, tags=Tags(lyrics=lrc))` escribe únicamente el campo de letras. Los demás campos quedan en `None`, que el etiquetador de Gamdl trata como «no modificar».
+7. El programa vuelve a leer el átomo de letras, verifica la identidad de los datos `mdat`, publica la copia temporal mediante `os.replace()` solo después de ambas verificaciones; no crea un respaldo permanente.
 
 ## Reutilización de autenticación
 
@@ -32,9 +33,9 @@ Las credenciales permanecen en memoria durante la ejecución. El actualizador no
 
 ## Disponibilidad y advertencias sobre el endpoint privado
 
-La implementación de letras de catálogo de Gamdl consulta el endpoint AMP de Apple (`/v1/catalog/{storefront}/songs/{song_id}/lyrics`). El propio código upstream advierte que este endpoint es privado y puede cambiar independientemente de la superficie de API soportada por Gamdl. La disponibilidad de letras también depende de la canción, el storefront, los permisos de la cuenta y el idioma. Si no hay respuesta, TTML o marcas temporales por línea, el programa omite la pista; nunca inventa tiempos.
+La implementación de letras de catálogo de Gamdl puede consultar dos endpoints AMP de Apple: `/v1/catalog/{storefront}/songs/{song_id}/lyrics` y `/v1/catalog/{storefront}/songs/{song_id}/syllable-lyrics`. El propio código upstream advierte que este endpoint es privado y puede cambiar independientemente de la superficie de API soportada por Gamdl. La disponibilidad de letras también depende de la canción, el storefront, los permisos de la cuenta y el idioma. Si no hay respuesta, TTML o marcas temporales por línea, el programa omite la pista; nunca inventa tiempos.
 
-La primera versión solicita sincronización estándar por línea (`syllable=False`) y genera LRC estándar incrustado, no LRC mejorado por palabra/sílaba. Nunca recurre a letras de texto plano.
+El actualizador intenta primero `syllable=False` y recurre a `syllable=True` cuando la respuesta estándar carece de sincronización completa. El resultado incrustado sigue siendo LRC estándar por línea, nunca enhanced-LRC ni texto plano.
 
 ## Compatibilidad de versiones
 
