@@ -2,6 +2,22 @@
 
 Los cambios relevantes se registran por versión. Cada commit del repositorio también describe puntualmente su modificación.
 
+## [0.2.0] - 2026-11-15
+
+### Cambiado
+
+- Eliminada la creación de respaldos permanentes; el archivo se prepara en un temporal, se verifica y se publica mediante reemplazo atómico.
+- Añadido un LOG acumulativo en `.lyrics-retagger.log`, configurable con `--log-file`.
+- Añadido diagnóstico por pista: metadatos de catálogo, `hasLyrics`, estado HTTP, cantidad de recursos, presencia y longitud de TTML, sincronización por línea y estado de escritura.
+- Añadida inspección diagnóstica de un sidecar `.ttml` del mismo nombre base cuando Apple Music no devuelve letras. No se usa automáticamente como fuente alternativa.
+- El LOG excluye texto de letras, TTML completo y credenciales.
+- Añadidas pruebas para observación segura de respuestas, estados HTTP 404, detección de TTML local y ausencia de respaldos.
+
+### Limitaciones
+
+- Las carpetas de respaldo creadas por versiones anteriores no se borran automáticamente.
+- Un TTML local se detecta solo si está junto al M4A y comparte el nombre base.
+
 ## [0.1.0] - 2026-11-14
 
 ### Añadido
