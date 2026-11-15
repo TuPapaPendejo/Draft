@@ -11,7 +11,8 @@ Los cambios relevantes se registran por versión. Cada commit del repositorio ta
 - Añadido diagnóstico por pista: metadatos de catálogo, `hasLyrics`, estado HTTP, cantidad de recursos, presencia y longitud de TTML, sincronización por línea y estado de escritura.
 - Añadida inspección diagnóstica de un sidecar `.ttml` del mismo nombre base cuando Apple Music no devuelve letras. No se usa automáticamente como fuente alternativa.
 - El LOG excluye texto de letras, TTML completo y credenciales.
-- Añadidas pruebas para observación segura de respuestas, estados HTTP 404, detección de TTML local y ausencia de respaldos.
+- Añadido el parámetro `--match` para ejecutar consultas diagnósticas sobre pistas seleccionadas por nombre o ruta.
+- Añadidas pruebas para observación segura de respuestas, estados HTTP 404, detección de TTML local, filtro de archivos y ausencia de respaldos.
 
 ### Limitaciones
 
