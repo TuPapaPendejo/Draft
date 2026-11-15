@@ -29,8 +29,14 @@ class FakeLyrics:
 
 
 class FakeSongInstance:
-    def __init__(self, lyrics: FakeLyrics | None, metadata=None) -> None:
+    def __init__(
+        self,
+        lyrics: FakeLyrics | None,
+        metadata=None,
+        syllable_lyrics: FakeLyrics | None = None,
+    ) -> None:
         self.lyrics = lyrics
+        self.syllable_lyrics = syllable_lyrics if syllable_lyrics is not None else lyrics
         self.metadata = metadata or {
             "attributes": {
                 "name": "Test track",
@@ -40,13 +46,15 @@ class FakeSongInstance:
             }
         }
         self.get_lyrics_kwargs = None
+        self.get_lyrics_calls = []
 
     async def get_metadata(self):
         return self.metadata
 
     async def get_lyrics(self, **kwargs):
         self.get_lyrics_kwargs = kwargs
-        return self.lyrics
+        self.get_lyrics_calls.append(kwargs.copy())
+        return self.syllable_lyrics if kwargs.get("syllable") else self.lyrics
 
 
 class FakeSong:
@@ -107,7 +115,33 @@ class FetchSynchronizedLyricsTests(unittest.IsolatedAsyncioTestCase):
             result = await fetch_synchronized_lrc(api, "123")
 
         self.assertIsNone(result)
+        self.assertEqual(len(FakeSong.instance.get_lyrics_calls), 2)
+        self.assertEqual(FakeSong.instance.get_lyrics_calls[1]["syllable"], True)
         self.assertFalse(lyrics.rendered)
+
+    async def test_uses_syllable_endpoint_when_standard_ttml_has_no_timestamps(self) -> None:
+        api = types.SimpleNamespace(language="en-US", _lyrics_retagger_responses={})
+        standard = FakeLyrics(
+            [FakeLyricLine("First line", None), FakeLyricLine("Second line", None)]
+        )
+        syllable = FakeLyrics(
+            [FakeLyricLine("First line", 500), FakeLyricLine("Second line", 2000)]
+        )
+        FakeSong.instance = FakeSongInstance(standard, syllable_lyrics=syllable)
+
+        with self._install_fake_gamdl():
+            result = await fetch_synchronized_lrc(api, "1444116875")
+
+        self.assertEqual(
+            FakeSong.instance.get_lyrics_calls,
+            [
+                {"syllable": False, "language": "en-US"},
+                {"syllable": True, "language": "en-US"},
+            ],
+        )
+        self.assertFalse(standard.rendered)
+        self.assertTrue(syllable.rendered)
+        self.assertEqual(result, "[00:00.50]Timed line\\n[00:02.00]Second line")
 
     async def test_skips_missing_lyrics(self) -> None:
         api = types.SimpleNamespace(language="en-US", _retagger_last_response=None)
