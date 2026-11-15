@@ -47,4 +47,4 @@ El actualizador falla de forma conservadora. La ausencia de identificador, letra
 
 ## Registro
 
-El archivo `.lyrics-retagger.log` es acumulativo. Cada ejecución registra la configuración no secreta, el estado de cada archivo, los metadatos de catálogo, los códigos HTTP, la presencia y longitud de TTML, los conteos de líneas sincronizadas, los hashes SHA-256 de `mdat`, las verificaciones del átomo `©lyr` y el resumen. No se registran texto de letras, TTML completo, cookies, tokens ni contraseñas.
+El archivo `.lyrics-retagger.log` es acumulativo. En la versión 0.3.0 se registra por separado si la letra utilizable provino de `standard` o `syllable`. Cada ejecución registra la configuración no secreta, el estado de cada archivo, los metadatos de catálogo, los códigos HTTP, la presencia y longitud de TTML, los conteos de líneas sincronizadas, los hashes SHA-256 de `mdat`, las verificaciones del átomo `©lyr` y el resumen. No se registran texto de letras, TTML completo, cookies, tokens ni contraseñas.
