@@ -29,9 +29,20 @@ class FakeLyrics:
 
 
 class FakeSongInstance:
-    def __init__(self, lyrics: FakeLyrics | None) -> None:
+    def __init__(self, lyrics: FakeLyrics | None, metadata=None) -> None:
         self.lyrics = lyrics
+        self.metadata = metadata or {
+            "attributes": {
+                "name": "Test track",
+                "artistName": "Test artist",
+                "isrc": "USAAA0000001",
+                "hasLyrics": True,
+            }
+        }
         self.get_lyrics_kwargs = None
+
+    async def get_metadata(self):
+        return self.metadata
 
     async def get_lyrics(self, **kwargs):
         self.get_lyrics_kwargs = kwargs
@@ -70,7 +81,7 @@ class FetchSynchronizedLyricsTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_requests_standard_lrc_using_configured_language(self) -> None:
-        api = types.SimpleNamespace(language="es-MX")
+        api = types.SimpleNamespace(language="es-MX", _retagger_last_response=None)
         lyrics = FakeLyrics(
             [FakeLyricLine("Timed line", 500), FakeLyricLine("Second line", 2000)]
         )
@@ -87,7 +98,7 @@ class FetchSynchronizedLyricsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, "[00:00.50]Timed line\n[00:02.00]Second line")
 
     async def test_skips_partially_synchronized_lyrics(self) -> None:
-        api = types.SimpleNamespace(language="en-US")
+        api = types.SimpleNamespace(language="en-US", _retagger_last_response=None)
         lyrics = FakeLyrics(
             [FakeLyricLine("Timed line", 500), FakeLyricLine("Untimed line", None)]
         )
@@ -99,11 +110,22 @@ class FetchSynchronizedLyricsTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(lyrics.rendered)
 
     async def test_skips_missing_lyrics(self) -> None:
-        api = types.SimpleNamespace(language="en-US")
+        api = types.SimpleNamespace(language="en-US", _retagger_last_response=None)
         FakeSong.instance = FakeSongInstance(None)
         with self._install_fake_gamdl():
             result = await fetch_synchronized_lrc(api, "123")
         self.assertIsNone(result)
+
+    async def test_skips_when_catalog_explicitly_says_has_lyrics_false(self) -> None:
+        api = types.SimpleNamespace(language="en-US", _retagger_last_response=None)
+        FakeSong.instance = FakeSongInstance(
+            FakeLyrics([FakeLyricLine("Never requested", 100)]),
+            metadata={"attributes": {"name": "Interlude", "hasLyrics": False}},
+        )
+        with self._install_fake_gamdl():
+            result = await fetch_synchronized_lrc(api, "123")
+        self.assertIsNone(result)
+        self.assertIsNone(FakeSong.instance.get_lyrics_kwargs)
 
 
 if __name__ == "__main__":
