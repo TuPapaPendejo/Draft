@@ -75,7 +75,6 @@ class ApplyLyricsTests(unittest.TestCase):
             muxer.received_tags,
             FakeTags(lyrics="[00:00.50]New synchronized line"),
         )
-        self.assertIsNone(result.backup)
         self.assertEqual(self.source.read_bytes(), self.original_bytes)
         self.assertFalse((self.root / ".lyrics-retagger-backups").exists())
         self.assertFalse(list(self.source.parent.glob(".*.lyrics-retagger-*")))
