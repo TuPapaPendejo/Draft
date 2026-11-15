@@ -20,18 +20,26 @@ Carpeta de M4A
                          |
                          +--> vuelve a leer ©lyr
                          +--> compara SHA-256 de mdat
-                         +--> guarda el original como respaldo
-                         +--> reemplazo atómico
+                         +--> os.replace() atómico; sin respaldo permanente
+                         +--> elimina el archivo temporal
+                         |
+                         +--> registra los detalles en .lyrics-retagger.log
 ```
 
 ## Límites entre módulos
 
 - `mp4.py` extrae el identificador de catálogo y verifica los datos multimedia del contenedor.
 - `auth.py` reutiliza la configuración existente de Gamdl y crea `AppleMusicApi` o `WrapperApi` según el método configurado.
-- `fetch_synchronized_lrc()` delega en Gamdl la consulta de TTML, el análisis y la conversión a LRC.
+- `install_lyrics_api_observer()` registra el estado HTTP y la forma de la respuesta del endpoint de letras sin almacenar su cuerpo.
+- `fetch_synchronized_lrc()` registra metadatos, consulta TTML, analiza y convierte a LRC mediante Gamdl.
+- `inspect_local_ttml()` busca un sidecar TTML homónimo cuando la consulta remota no produce LRC. Solo informa sobre su presencia y sincronización; no lo aplica.
 - `apply_embedded_lrc()` modifica únicamente el campo de letras de `gamdl.download.Tags`. El resto de campos quedan en `None` para que Gamdl los conserve.
-- `cli.py` administra la búsqueda de archivos, la simulación, el modo de escritura y el resumen por archivo.
+- `cli.py` administra la búsqueda de archivos, la simulación, el modo de escritura, el LOG y el resumen por archivo.
 
 ## Política ante fallos
 
-El actualizador falla de forma conservadora. La ausencia de identificador, letras, sincronización completa o un átomo válido, así como cualquier discrepancia en `©lyr` o en los datos `mdat`, impide reemplazar el original. Los temporales se eliminan en un bloque `finally`. No se crea un respaldo permanente. El archivo temporal se elimina en un bloque `finally`; el LOG conserva los detalles de la operación.
+El actualizador falla de forma conservadora. La ausencia de identificador, letras, sincronización completa o un átomo válido, así como cualquier discrepancia en `©lyr` o en los datos `mdat`, impide reemplazar el original. El M4A se copia a un archivo temporal en la misma carpeta, se etiqueta y se verifica antes de publicarse mediante reemplazo atómico. El temporal se elimina en un bloque `finally`; no se crea un respaldo permanente.
+
+## Registro
+
+El archivo `.lyrics-retagger.log` es acumulativo. Cada ejecución registra la configuración no secreta, el estado de cada archivo, los metadatos de catálogo, los códigos HTTP, la presencia y longitud de TTML, los conteos de líneas sincronizadas, los hashes SHA-256 de `mdat`, las verificaciones del átomo `©lyr` y el resumen. No se registran texto de letras, TTML completo, cookies, tokens ni contraseñas.
