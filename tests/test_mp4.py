@@ -1,4 +1,4 @@
-"""Unit tests for the MP4 payload-integrity guard."""
+"""Unit tests for MP4 IDs, lyrics atoms and the audio-payload integrity guard."""
 
 from __future__ import annotations
 
@@ -6,12 +6,36 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from gamdl_lyrics_retagger.mp4 import Mp4InspectionError, mdat_signature
+from gamdl_lyrics_retagger.mp4 import (
+    Mp4InspectionError,
+    mdat_signature,
+    read_catalog_song_id,
+    read_embedded_lyrics,
+)
 
 
 def atom(atom_type: bytes, payload: bytes) -> bytes:
     return struct.pack(">I4s", 8 + len(payload), atom_type) + payload
+
+
+class Mp4TagReadTests(unittest.TestCase):
+    def test_reads_catalog_song_id_from_cnid(self) -> None:
+        fake_mp4 = type("FakeMp4", (), {"tags": {"cnID": [6805195215]}})()
+        with patch("gamdl_lyrics_retagger.mp4.MP4", return_value=fake_mp4):
+            self.assertEqual(read_catalog_song_id(Path("track.m4a")), "6805195215")
+
+    def test_does_not_substitute_album_or_artist_ids(self) -> None:
+        fake_mp4 = type("FakeMp4", (), {"tags": {"plID": [123], "atID": [456]}})()
+        with patch("gamdl_lyrics_retagger.mp4.MP4", return_value=fake_mp4):
+            self.assertIsNone(read_catalog_song_id(Path("track.m4a")))
+
+    def test_reads_embedded_lyrics_from_lyr_atom(self) -> None:
+        expected = "[00:01.23]Synchronized line"
+        fake_mp4 = type("FakeMp4", (), {"tags": {"©lyr": [expected]}})()
+        with patch("gamdl_lyrics_retagger.mp4.MP4", return_value=fake_mp4):
+            self.assertEqual(read_embedded_lyrics(Path("track.m4a")), expected)
 
 
 class MdatSignatureTests(unittest.TestCase):
