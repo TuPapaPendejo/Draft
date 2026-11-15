@@ -10,7 +10,11 @@ Carpeta de M4A
               |
               +--> Song.from_id(cnID)
               |
-              +--> Song.get_lyrics()
+              +--> Song.get_lyrics(syllable=False)
+                         |
+                  si no hay tiempos completos
+                         v
+              +--> Song.get_lyrics(syllable=True)
                          |
                          v
                  TTML -> Lyrics de Gamdl -> LRC estándar
@@ -30,7 +34,8 @@ Carpeta de M4A
 
 - `mp4.py` extrae el identificador de catálogo y verifica los datos multimedia del contenedor.
 - `auth.py` reutiliza la configuración existente de Gamdl y crea `AppleMusicApi` o `WrapperApi` según el método configurado.
-- `install_lyrics_api_observer()` registra el estado HTTP y la forma de la respuesta del endpoint de letras sin almacenar su cuerpo.
+- `install_lyrics_api_observer()` registra el estado HTTP y la forma de las respuestas `standard` y `syllable`, sin almacenar sus cuerpos.
+- `fetch_synchronized_lrc()` intenta primero el TTML estándar y utiliza el endpoint de sincronización por palabra/sílaba como respaldo si faltan marcas de tiempo. El destino siempre es LRC estándar por línea.
 - `fetch_synchronized_lrc()` registra metadatos, consulta TTML, analiza y convierte a LRC mediante Gamdl.
 - `inspect_local_ttml()` busca un sidecar TTML homónimo cuando la consulta remota no produce LRC. Solo informa sobre su presencia y sincronización; no lo aplica.
 - `apply_embedded_lrc()` modifica únicamente el campo de letras de `gamdl.download.Tags`. El resto de campos quedan en `None` para que Gamdl los conserve.
