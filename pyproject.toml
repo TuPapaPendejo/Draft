@@ -1,0 +1,27 @@
+[project]
+name = "gamdl-lyrics-retagger"
+version = "0.1.0"
+description = "Refresh synchronized LRC lyrics in existing Apple Music M4A files using Gamdl 4.x without downloading audio."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Draft project" }]
+dependencies = [
+    "gamdl>=4.0.1,<5",
+    "mutagen>=1.47,<2",
+    "PyYAML>=6,<7",
+]
+
+[project.scripts]
+gamdl-lyrics-retagger = "gamdl_lyrics_retagger.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gamdl_lyrics_retagger"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
