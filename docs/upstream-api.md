@@ -1,41 +1,41 @@
-# Gamdl 4.x API integration notes
+# Notas de integración con la API de Gamdl 4.x
 
-This project targets Gamdl's `4.0` source line (the inspected package metadata reports `4.0.1`). It deliberately calls the higher-level media API instead of recreating Apple Music authentication or parsing TTML itself.
+Este proyecto apunta a la rama fuente `4.0` de Gamdl (el `pyproject.toml` inspeccionado declara la versión `4.0.1`). Se utilizan las clases de alto nivel de Gamdl en lugar de recrear la autenticación de Apple Music o implementar otro analizador TTML.
 
-## Upstream entry points
+## Puntos de entrada upstream
 
-- [Gamdl 4.0 README — Python API](https://github.com/glomatico/gamdl/blob/4.0/README.md#-python-api): documents asynchronous `AppleMusicApi`, `MediaResolver`, and `Song` usage.
-- [Apple Music catalog endpoints](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/api/apple_music/catalog.py): exposes `get_lyrics(song_id, language=...)` and `get_syllable_lyrics(...)`.
-- [Song media model](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/media/song/media.py): `Song.get_lyrics()` resolves the catalog ID, fetches the TTML lyrics response, and returns a parsed `Lyrics` model without requesting an audio stream.
-- [Lyrics parser and exporters](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/media/song/lyrics.py): parses TTML and renders standard or enhanced LRC.
-- [Native MP4 tag interface](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/muxer/muxer.py): `Muxer.tag()` accepts a `gamdl.download.Tags` instance; unset fields remain untouched.
-- [Native MP4 atom mapping](https://github.com/glomatico/gamdl/blob/4.0/native/src/tags.rs): maps the `lyrics` field to the MP4 `©lyr` atom and the song `title_id` to `cnID`.
+- [README de Gamdl 4.0 — Python API](https://github.com/glomatico/gamdl/blob/4.0/README.md#-python-api): documenta el uso asíncrono de `AppleMusicApi`, `MediaResolver` y `Song`.
+- [Endpoints de catálogo de Apple Music](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/api/apple_music/catalog.py): implementa `get_lyrics(song_id, language=...)` y `get_syllable_lyrics(...)`.
+- [Modelo de canción](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/media/song/media.py): `Song.get_lyrics()` resuelve el ID de catálogo, consulta TTML y devuelve un objeto `Lyrics` sin solicitar un stream de audio.
+- [Analizador y exportadores Lyrics](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/media/song/lyrics.py): analiza TTML y genera LRC estándar o mejorado.
+- [Interfaz nativa de etiquetado MP4](https://github.com/glomatico/gamdl/blob/4.0/src/gamdl/muxer/muxer.py): `Muxer.tag()` recibe un objeto `gamdl.download.Tags`; los campos no especificados permanecen intactos.
+- [Mapeo de átomos MP4](https://github.com/glomatico/gamdl/blob/4.0/native/src/tags.rs): asocia el campo `lyrics` con el átomo MP4 `©lyr` y el campo `title_id` con `cnID`.
 
-## Exact data flow
+## Flujo exacto de datos
 
-1. Mutagen reads `cnID` from the local M4A. This is the Apple catalog **song** ID. Album and artist IDs are not accepted as substitutes.
-2. `Song.from_id(song_id, api=api)` creates a lazy media object. This does not resolve or download audio.
-3. `await song.get_lyrics(syllable=False, language=api.language)` asks Gamdl for standard TTML lyrics. It is a metadata/lyrics request only.
-4. `Lyrics.render(LyricsFormat.LRC, embedded=False)` converts line-level TTML timing into ordinary `[mm:ss.xx]` LRC timestamps. With `embedded=False`, Gamdl raises when the source cannot produce synchronized LRC rather than falling back to plain text.
-5. `Muxer.tag(staged_path, tags=Tags(lyrics=lrc))` writes only the lyrics field. Other fields are `None`, which the Gamdl tag writer treats as unspecified/preserve.
-6. The program reads the lyric atom back, verifies `mdat` payload identity, saves a backup, and only then replaces the original path.
+1. Mutagen lee `cnID` del M4A local. Es el ID de catálogo de la **canción**. Los IDs de álbum y artista no se usan como sustitutos.
+2. `Song.from_id(song_id, api=api)` crea un objeto diferido. Esta operación no resuelve ni descarga audio.
+3. `await song.get_lyrics(syllable=False, language=api.language)` solicita a Gamdl las letras TTML estándar. Es una consulta de metadatos/letras.
+4. `Lyrics.render(LyricsFormat.LRC, embedded=False)` convierte las marcas de tiempo TTML de cada línea en marcas LRC `[mm:ss.xx]`. Con `embedded=False`, Gamdl no degrada silenciosamente el resultado a texto plano si no puede producir LRC sincronizado.
+5. `Muxer.tag(staged_path, tags=Tags(lyrics=lrc))` escribe únicamente el campo de letras. Los demás campos quedan en `None`, que el etiquetador de Gamdl trata como «no modificar».
+6. El programa vuelve a leer el átomo de letras, verifica la identidad de los datos `mdat`, guarda una copia del original y solo entonces reemplaza la ruta original.
 
-## Authentication reuse
+## Reutilización de autenticación
 
-The integration reads the existing `~/.gamdl/config.yml` and supports these Gamdl 4.x `auth.mode` values:
+El programa lee `~/.gamdl/config.yml` y admite los valores de `auth.mode` de Gamdl 4.x:
 
 - `cookies`: `AppleMusicApi.from_cookies(auth.cookies_path, ...)`.
 - `media-user-token`: `AppleMusicApi.create(media_user_token=..., ...)`.
-- `wrapper`: `WrapperApi.create(...)`, then `AppleMusicApi.from_wrapper(...)`.
+- `wrapper`: `WrapperApi.create(...)` y después `AppleMusicApi.from_wrapper(...)`.
 
-Credentials are only held in memory while the process runs. The retagger does not change Gamdl's configuration or write tokens to logs.
+Las credenciales permanecen en memoria durante la ejecución. El actualizador no cambia el archivo de configuración de Gamdl ni escribe tokens en los registros. En modo `wrapper`, el servicio Wrapper v2 debe estar disponible y autenticado previamente.
 
-## Availability and private endpoint caveats
+## Disponibilidad y advertencias sobre el endpoint privado
 
-Gamdl's catalog lyrics implementation calls Apple's AMP catalog lyrics endpoint (`/v1/catalog/{storefront}/songs/{song_id}/lyrics`). The corresponding upstream code itself notes that this endpoint is private and may change independently of Gamdl's supported API surface. Lyrics also vary by song, storefront, account access and language. The program treats no response, no TTML, or TTML without line timing as a skip; it never synthesizes timestamps.
+La implementación de letras de catálogo de Gamdl consulta el endpoint AMP de Apple (`/v1/catalog/{storefront}/songs/{song_id}/lyrics`). El propio código upstream advierte que este endpoint es privado y puede cambiar independientemente de la superficie de API soportada por Gamdl. La disponibilidad de letras también depende de la canción, el storefront, los permisos de la cuenta y el idioma. Si no hay respuesta, TTML o marcas temporales por línea, el programa omite la pista; nunca inventa tiempos.
 
-The first project version asks for standard line timing (`syllable=False`) and creates embedded standard LRC, not enhanced word/syllable LRC. It never falls back to text-only lyrics.
+La primera versión solicita sincronización estándar por línea (`syllable=False`) y genera LRC estándar incrustado, no LRC mejorado por palabra/sílaba. Nunca recurre a letras de texto plano.
 
-## Version compatibility
+## Compatibilidad de versiones
 
-The dependency range is `gamdl>=4.0.1,<5`. If Gamdl changes the `Song`, `Lyrics`, authentication or `Muxer` interface within a future 4.x release, the unit suite and manual one-file Apple Music test should be run before upgrading the lockfile.
+El rango de dependencias es `gamdl>=4.0.1,<5`. Si Gamdl modifica la interfaz `Song`, `Lyrics`, autenticación o `Muxer` dentro de una futura versión 4.x, deben ejecutarse las pruebas unitarias y la validación manual con una sola pista real antes de actualizar el entorno.
