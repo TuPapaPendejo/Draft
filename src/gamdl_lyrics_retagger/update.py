@@ -1,4 +1,4 @@
-"""Fetch synchronized LRC, diagnose missing lyrics, and safely retag M4A files."""
+"""Fetch synchronized LRC with standard-to-syllable fallback and safe diagnostics."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .mp4 import MdatSignature, mdat_signature, read_embedded_lyrics
 
@@ -26,75 +26,129 @@ def _log(logger: logging.Logger | None, level: int, message: str, *args: Any) ->
 
 
 def install_lyrics_api_observer(api: Any, logger: logging.Logger) -> None:
-    """Log safe response diagnostics around Gamdl's standard lyrics endpoint.
-
-    Response bodies and TTML text are never written to the log. Only resource
-    counts, attribute names, TTML presence/length, and safe HTTP status data
-    are recorded. Apple Music credentials are not inspected.
-    """
+    """Observe both Gamdl lyrics endpoints without logging response bodies."""
     if getattr(api, "_lyrics_retagger_observer_installed", False):
         return
 
-    original_get_lyrics = api.get_lyrics
+    responses: dict[str, dict[str, Any]] = {}
+    for method_name, endpoint in (
+        ("get_lyrics", "standard"),
+        ("get_syllable_lyrics", "syllable"),
+    ):
+        original = getattr(api, method_name, None)
+        if not callable(original):
+            continue
 
-    async def observed_get_lyrics(song_id: str, *, language: str | None = None):
-        logger.info(
-            "APPLE_LYRICS_REQUEST song_id=%s storefront=%s language=%s endpoint=standard",
-            song_id,
-            getattr(api, "storefront", "unknown"),
-            language or getattr(api, "language", "default"),
-        )
-        try:
-            payload = await original_get_lyrics(song_id, language=language)
-        except Exception as exc:
-            status_code = getattr(exc, "status_code", None)
-            api._lyrics_retagger_last_response = {
-                "status": "http_error",
-                "status_code": status_code,
-                "error_type": type(exc).__name__,
-            }
-            logger.warning(
-                "APPLE_LYRICS_HTTP_ERROR song_id=%s error_type=%s status_code=%s",
-                song_id,
-                type(exc).__name__,
-                status_code if status_code is not None else "unknown",
-            )
-            raise
+        def make_observer(
+            original_method: Callable[..., Any],
+            endpoint_name: str,
+        ) -> Callable[..., Any]:
+            async def observed(song_id: str, **kwargs: Any):
+                language = kwargs.get("language") or getattr(api, "language", "default")
+                logger.info(
+                    "APPLE_LYRICS_REQUEST song_id=%s storefront=%s language=%s endpoint=%s",
+                    song_id,
+                    getattr(api, "storefront", "unknown"),
+                    language,
+                    endpoint_name,
+                )
+                try:
+                    payload = await original_method(song_id, **kwargs)
+                except Exception as exc:
+                    status_code = getattr(exc, "status_code", None)
+                    diagnostics = {
+                        "status": "http_error",
+                        "status_code": status_code,
+                        "error_type": type(exc).__name__,
+                    }
+                    responses[endpoint_name] = diagnostics
+                    api._lyrics_retagger_last_response = diagnostics
+                    logger.warning(
+                        "APPLE_LYRICS_HTTP_ERROR song_id=%s endpoint=%s "
+                        "error_type=%s status_code=%s",
+                        song_id,
+                        endpoint_name,
+                        type(exc).__name__,
+                        status_code if status_code is not None else "unknown",
+                    )
+                    raise
 
-        data = payload.get("data")
-        resources = data if isinstance(data, list) else []
-        attributes = (
-            resources[0].get("attributes", {})
-            if resources and isinstance(resources[0], dict)
-            else {}
-        )
-        if not isinstance(attributes, dict):
-            attributes = {}
-        raw_ttml = attributes.get("ttml")
-        ttml_present = isinstance(raw_ttml, str) and bool(raw_ttml.strip())
-        diagnostics = {
-            "status": "response",
-            "status_code": 200,
-            "data_count": len(resources),
-            "ttml_present": ttml_present,
-            "ttml_chars": len(raw_ttml) if isinstance(raw_ttml, str) else 0,
-            "attribute_keys": sorted(str(key) for key in attributes.keys()),
-        }
-        api._lyrics_retagger_last_response = diagnostics
-        logger.info(
-            "APPLE_LYRICS_RESPONSE song_id=%s status_code=200 data_count=%d "
-            "ttml_present=%s ttml_chars=%d attribute_keys=%s",
-            song_id,
-            diagnostics["data_count"],
-            diagnostics["ttml_present"],
-            diagnostics["ttml_chars"],
-            ",".join(diagnostics["attribute_keys"]) or "none",
-        )
-        return payload
+                resources_value = payload.get("data") if isinstance(payload, dict) else None
+                resources = resources_value if isinstance(resources_value, list) else []
+                attributes = (
+                    resources[0].get("attributes", {})
+                    if resources and isinstance(resources[0], dict)
+                    else {}
+                )
+                if not isinstance(attributes, dict):
+                    attributes = {}
 
-    api.get_lyrics = observed_get_lyrics
+                raw_ttml = attributes.get("ttml")
+                ttml_source = "ttml"
+                if not isinstance(raw_ttml, str) or not raw_ttml.strip():
+                    localizations = attributes.get("ttmlLocalizations")
+                    if isinstance(localizations, str):
+                        raw_ttml = localizations
+                        ttml_source = "ttmlLocalizations"
+                    elif isinstance(localizations, dict):
+                        raw_ttml = next(
+                            (value for value in localizations.values() if isinstance(value, str)),
+                            None,
+                        )
+                        ttml_source = "ttmlLocalizations"
+                ttml_present = isinstance(raw_ttml, str) and bool(raw_ttml.strip())
+
+                diagnostics = {
+                    "status": "response",
+                    "status_code": 200,
+                    "data_count": len(resources),
+                    "ttml_present": ttml_present,
+                    "ttml_chars": len(raw_ttml) if isinstance(raw_ttml, str) else 0,
+                    "ttml_source": ttml_source if ttml_present else "none",
+                    "attribute_keys": sorted(str(key) for key in attributes.keys()),
+                }
+                responses[endpoint_name] = diagnostics
+                api._lyrics_retagger_last_response = diagnostics
+                logger.info(
+                    "APPLE_LYRICS_RESPONSE song_id=%s endpoint=%s status_code=200 "
+                    "data_count=%d ttml_present=%s ttml_source=%s ttml_chars=%d "
+                    "attribute_keys=%s",
+                    song_id,
+                    endpoint_name,
+                    diagnostics["data_count"],
+                    diagnostics["ttml_present"],
+                    diagnostics["ttml_source"],
+                    diagnostics["ttml_chars"],
+                    ",".join(diagnostics["attribute_keys"]) or "none",
+                )
+                return payload
+
+            return observed
+
+        setattr(api, method_name, make_observer(original, endpoint))
+
+    api._lyrics_retagger_responses = responses
     api._lyrics_retagger_observer_installed = True
     api._lyrics_retagger_last_response = None
+
+
+def _lyrics_timing(lyrics: Any) -> tuple[int, int, int]:
+    lines = [line for line in lyrics.lines if line.text.strip()]
+    timed = [line for line in lines if line.start is not None]
+    return len(lines), len(timed), len(lines) - len(timed)
+
+
+def _response_reason(response: dict[str, Any]) -> str:
+    status_code = response.get("status_code")
+    if status_code == 404:
+        return "APPLE_LYRICS_ENDPOINT_404"
+    if response.get("status") == "http_error":
+        return "APPLE_LYRICS_ENDPOINT_ERROR"
+    if response.get("data_count") == 0:
+        return "EMPTY_LYRICS_DATA"
+    if response.get("ttml_present") is False:
+        return "RESPONSE_WITHOUT_TTML"
+    return "GAMDl_RETURNED_NO_LYRICS"
 
 
 async def fetch_synchronized_lrc(
@@ -103,7 +157,12 @@ async def fetch_synchronized_lrc(
     *,
     logger: logging.Logger | None = None,
 ) -> str | None:
-    """Ask Gamdl for strict line-synchronized LRC without requesting audio."""
+    """Fetch LRC using standard lyrics first, then syllable-timed TTML.
+
+    The second endpoint is attempted when standard TTML is missing or does not
+    time every non-empty line. Regardless of source granularity, output remains
+    standard line-level LRC (not enhanced word/syllable LRC).
+    """
     from gamdl.media import Song
     from gamdl.media.song.lyrics import LyricsFormat
 
@@ -128,7 +187,6 @@ async def fetch_synchronized_lrc(
         has_lyrics,
     )
 
-    api._lyrics_retagger_last_response = None
     if has_lyrics is False:
         _log(
             logger,
@@ -138,80 +196,120 @@ async def fetch_synchronized_lrc(
         )
         return None
 
-    lyrics = await song.get_lyrics(
-        syllable=False,
-        language=getattr(api, "language", None),
-    )
-    response = getattr(api, "_lyrics_retagger_last_response", None) or {}
+    language = getattr(api, "language", None)
+    responses = getattr(api, "_lyrics_retagger_responses", {})
 
-    if lyrics is None:
-        status_code = response.get("status_code")
-        if status_code == 404:
-            reason = "APPLE_LYRICS_ENDPOINT_404"
-        elif response.get("status") == "http_error":
-            reason = "APPLE_LYRICS_ENDPOINT_ERROR"
-        elif response.get("data_count") == 0:
-            reason = "EMPTY_LYRICS_DATA"
-        elif response.get("ttml_present") is False:
-            reason = "RESPONSE_WITHOUT_TTML"
+    # First use the standard endpoint. It is often sufficient for line LRC.
+    standard = await song.get_lyrics(syllable=False, language=language)
+    total, timed, untimed = _lyrics_timing(standard) if standard is not None else (0, 0, 0)
+
+    if standard is not None and total > 0 and untimed == 0:
+        selected = standard
+        selected_endpoint = "standard"
+    else:
+        if standard is None:
+            response = responses.get("standard", getattr(api, "_lyrics_retagger_last_response", {}) or {})
+            _log(
+                logger,
+                logging.WARNING,
+                "STANDARD_LYRICS_UNAVAILABLE song_id=%s reason=%s status_code=%s "
+                "data_count=%s ttml_present=%s",
+                song_id,
+                _response_reason(response),
+                response.get("status_code", "not-observed"),
+                response.get("data_count", "not-observed"),
+                response.get("ttml_present", "not-observed"),
+            )
+        elif total == 0:
+            _log(
+                logger,
+                logging.WARNING,
+                "STANDARD_LYRICS_UNAVAILABLE song_id=%s reason=TTML_CONTAINS_NO_TEXT_LINES",
+                song_id,
+            )
         else:
-            reason = "GAMDL_RETURNED_NO_LYRICS"
-        _log(
-            logger,
-            logging.WARNING,
-            "LYRICS_UNAVAILABLE song_id=%s reason=%s status_code=%s "
-            "data_count=%s ttml_present=%s",
-            song_id,
-            reason,
-            status_code if status_code is not None else "not-observed",
-            response.get("data_count", "not-observed"),
-            response.get("ttml_present", "not-observed"),
-        )
-        return None
+            _log(
+                logger,
+                logging.WARNING,
+                "STANDARD_LYRICS_UNAVAILABLE song_id=%s reason=NOT_FULLY_SYNCHRONIZED "
+                "total_lines=%d timed_lines=%d untimed_lines=%d",
+                song_id,
+                total,
+                timed,
+                untimed,
+            )
 
-    nonempty_lines = [line for line in lyrics.lines if line.text.strip()]
-    timed_lines = [line for line in nonempty_lines if line.start is not None]
-    untimed_lines = len(nonempty_lines) - len(timed_lines)
-    if not nonempty_lines:
         _log(
             logger,
-            logging.WARNING,
-            "LYRICS_UNAVAILABLE song_id=%s reason=TTML_CONTAINS_NO_TEXT_LINES",
+            logging.INFO,
+            "LYRICS_FALLBACK_ATTEMPT song_id=%s endpoint=syllable",
             song_id,
         )
-        return None
-    if untimed_lines:
-        _log(
-            logger,
-            logging.WARNING,
-            "LYRICS_UNAVAILABLE song_id=%s reason=PARTIALLY_SYNCHRONIZED "
-            "total_lines=%d timed_lines=%d untimed_lines=%d",
-            song_id,
-            len(nonempty_lines),
-            len(timed_lines),
-            untimed_lines,
-        )
-        return None
+        responses.pop("syllable", None)
+        selected = await song.get_lyrics(syllable=True, language=language)
+        selected_endpoint = "syllable"
 
-    # embedded=False is deliberate: Gamdl must not fall back to plain text.
-    rendered = lyrics.render(LyricsFormat.LRC, embedded=False)
+        if selected is None:
+            response = responses.get("syllable", getattr(api, "_lyrics_retagger_last_response", {}) or {})
+            _log(
+                logger,
+                logging.WARNING,
+                "SYLLABLE_LYRICS_UNAVAILABLE song_id=%s reason=%s status_code=%s "
+                "data_count=%s ttml_present=%s",
+                song_id,
+                _response_reason(response),
+                response.get("status_code", "not-observed"),
+                response.get("data_count", "not-observed"),
+                response.get("ttml_present", "not-observed"),
+            )
+            return None
+
+        total, timed, untimed = _lyrics_timing(selected)
+        if total == 0 or untimed:
+            _log(
+                logger,
+                logging.WARNING,
+                "SYLLABLE_LYRICS_UNAVAILABLE song_id=%s reason=NOT_FULLY_SYNCHRONIZED "
+                "total_lines=%d timed_lines=%d untimed_lines=%d",
+                song_id,
+                total,
+                timed,
+                untimed,
+            )
+            return None
+
+        _log(
+            logger,
+            logging.INFO,
+            "LYRICS_FALLBACK_SUCCESS song_id=%s endpoint=syllable total_lines=%d "
+            "timed_lines=%d",
+            song_id,
+            total,
+            timed,
+        )
+
+    # Explicit standard LRC rendering is used even when the source has
+    # word/syllable timing. Gamdl uses each line's first timestamp for LRC.
+    rendered = selected.render(LyricsFormat.LRC, embedded=False)
     rendered = rendered.strip("\ufeff\r\n")
     if not rendered:
         _log(
             logger,
             logging.WARNING,
-            "LYRICS_UNAVAILABLE song_id=%s reason=EMPTY_LRC_AFTER_RENDER",
+            "LYRICS_UNAVAILABLE song_id=%s endpoint=%s reason=EMPTY_LRC_AFTER_RENDER",
             song_id,
+            selected_endpoint,
         )
         return None
 
     _log(
         logger,
         logging.INFO,
-        "LYRICS_READY song_id=%s lines=%d timed_lines=%d lrc_chars=%d",
+        "LYRICS_READY song_id=%s endpoint=%s lines=%d timed_lines=%d lrc_chars=%d format=lrc",
         song_id,
-        len(nonempty_lines),
-        len(timed_lines),
+        selected_endpoint,
+        total,
+        timed,
         len(rendered),
     )
     return rendered
@@ -323,7 +421,6 @@ def apply_embedded_lrc(
             path.stat().st_size,
         )
 
-        # All other Tags fields are None; Gamdl preserves existing atoms.
         muxer.tag(temporary, tags=Tags(lyrics=lyrics))
 
         staged_signature = mdat_signature(temporary)
