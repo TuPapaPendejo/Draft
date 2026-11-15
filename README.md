@@ -88,6 +88,18 @@ El LOG predeterminado es `/mnt/d/Pruebas/.lyrics-retagger.log` (o `<directory>/.
 
 El LOG registra por pista el `cnID`, título, artista, ISRC, `hasLyrics`, estado y forma de la respuesta del endpoint, presencia/tamaño del TTML, marcas de tiempo válidas, resultado de `©lyr`, hashes SHA-256 de `mdat`, errores y resumen de ejecución. No registra el texto de las letras, TTML completo, tokens, cookies ni contraseñas.
 
+Para revisar las entradas de la última pista omitida, por ejemplo:
+
+```bash
+grep -n -E '1444116875|Baby Come On' /mnt/d/Pruebas/.lyrics-retagger.log
+```
+
+Para ver el final del registro:
+
+```bash
+tail -n 100 /mnt/d/Pruebas/.lyrics-retagger.log
+```
+
 Cuando Apple Music no devuelve letras, también busca un `.ttml` con el mismo nombre base que el M4A y registra si existe y cuántas líneas sincronizadas contiene. Esta inspección es diagnóstica; no utiliza automáticamente el TTML local como sustituto.
 
 Puedes seleccionar cualquier otra carpeta mediante `--directory`; `/mnt/d/Pruebas` es solo el valor predeterminado de este proyecto mientras se desarrolla. La carpeta `.lyrics-retagger-backups` creada por la versión 0.1.0 no se elimina automáticamente; puedes borrarla manualmente después de confirmar que ya no necesitas esos respaldos.
