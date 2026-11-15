@@ -30,7 +30,11 @@ async def fetch_synchronized_lrc(api: Any, song_id: str) -> str | None:
         syllable=False,
         language=getattr(api, "language", None),
     )
-    if lyrics is None or not lyrics.is_synced:
+    if lyrics is None:
+        return None
+    timed_lines = [line for line in lyrics.lines if line.text.strip()]
+    if not timed_lines or any(line.start is None for line in timed_lines):
+        # Do not label a partially timed transcript as fully synchronized.
         return None
 
     # embedded=False is deliberate: do not silently fall back to plain text.
