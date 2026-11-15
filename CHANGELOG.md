@@ -1,24 +1,24 @@
-# Changelog
+# Historial de cambios
 
-All notable changes to this project are documented here. Version entries describe release scope; individual repository commits describe each change.
+Los cambios relevantes se registran por versión. Cada commit del repositorio también describe puntualmente su modificación.
 
 ## [0.1.0] - 2026-11-14
 
-### Added
+### Añadido
 
-- Initial project for refreshing embedded synchronized LRC lyrics in existing Gamdl M4A files.
-- Reads Apple Music song catalog IDs from the MP4 cnID atom.
-- Reuses existing Gamdl 4.x authentication for cookies, Media User Token, or Wrapper v2.
-- Uses Gamdl's asynchronous song/lyrics API and native MP4 tag writer; no audio stream is downloaded or encoded.
-- Default simulation mode; changes require the explicit --apply flag.
-- Creates non-overwriting backups before replacement.
-- Verifies the embedded ©lyr atom and byte-identical mdat payloads before publishing a staged file.
-- Rejects transcripts with any non-empty line lacking a timestamp; does not downgrade partially synchronized text to LRC.
-- Includes WSL/uv installation instructions, CLI reference, troubleshooting notes, and 13 unit tests for catalog ID extraction, lyrics retrieval policy, backups, and integrity guards.
+- Proyecto inicial para actualizar letras LRC sincronizadas incrustadas en archivos M4A existentes de Apple Music.
+- Lectura del identificador de canción de catálogo desde el átomo MP4 `cnID`.
+- Reutilización de la autenticación de Gamdl 4.x: cookies, Media User Token o Wrapper v2.
+- Consulta asíncrona de letras mediante la API de Gamdl y uso de su etiquetador MP4 nativo; no se descarga ni codifica audio.
+- Simulación predeterminada; los cambios requieren el parámetro explícito `--apply`.
+- Copias de seguridad no sobrescribibles antes de sustituir archivos.
+- Verificación de `©lyr` y de la identidad byte a byte de los datos `mdat` antes de publicar el archivo temporal.
+- Rechazo de letras parcialmente sincronizadas: toda línea con texto debe tener marca de tiempo.
+- Documentación de instalación en WSL con `uv`, parámetros CLI, arquitectura, API upstream y pruebas unitarias.
 
-### Known limitations
+### Limitaciones conocidas
 
-- Processes .m4a files with a readable cnID only.
-- Requires Apple Music to return fully line-synchronized lyrics; it skips text-only, partially synchronized, or unavailable lyrics.
-- Does not create external .lrc sidecar files.
-- API integration tests against a real Apple Music account remain a manual validation step.
+- Procesa archivos `.m4a` con un `cnID` legible.
+- Requiere que Apple Music devuelva letras con sincronización por línea completa; omite letras solo textuales, parcialmente sincronizadas o no disponibles.
+- No crea archivos `.lrc` externos.
+- La validación final contra una cuenta real de Apple Music debe realizarse manualmente con una pista de prueba.
