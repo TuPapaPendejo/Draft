@@ -2,6 +2,21 @@
 
 Los cambios relevantes se registran por versión. Cada commit del repositorio también describe puntualmente su modificación.
 
+## [0.3.0] - 2026-11-15
+
+### Añadido
+
+- Cuando el endpoint estándar no devuelve TTML sincronizado para todas las líneas, consulta automáticamente `Song.get_lyrics(syllable=True)` mediante el endpoint `syllable-lyrics` de Gamdl.
+- Convierte la sincronización por palabra/sílaba del TTML de respaldo a LRC estándar por línea, usando el inicio temporal de cada línea.
+- El LOG distingue peticiones y respuestas `standard` y `syllable`, e identifica qué endpoint produjo el LRC final.
+- Añadidas pruebas para fallback tras TTML sin tiempos y tras ausencia de recurso estándar.
+
+### Comportamiento conservado
+
+- No descarga ni modifica audio; solo actualiza `©lyr`.
+- No produce enhanced-LRC; el resultado permanece como LRC estándar.
+- Si ninguno de los endpoints proporciona tiempos para todas las líneas con texto, omite la pista.
+
 ## [0.2.0] - 2026-11-15
 
 ### Cambiado
