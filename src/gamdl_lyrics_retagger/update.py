@@ -26,7 +26,10 @@ async def fetch_synchronized_lrc(api: Any, song_id: str) -> str | None:
     from gamdl.media.song.lyrics import LyricsFormat
 
     song = Song.from_id(song_id, api=api, is_library=False)
-    lyrics = await song.get_lyrics(syllable=False)
+    lyrics = await song.get_lyrics(
+        syllable=False,
+        language=getattr(api, "language", None),
+    )
     if lyrics is None or not lyrics.is_synced:
         return None
 
