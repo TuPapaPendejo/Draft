@@ -2,7 +2,7 @@
 
 Actualiza las letras sincronizadas dentro de archivos Apple Music `.m4a` ya descargados, sin volver a descargar ni recodificar el audio.
 
-Versión actual: `0.2.0` · Objetivo: Gamdl `4.x` · Entorno principal: openSUSE Tumbleweed en WSL.
+Versión actual: `0.3.0` · Objetivo: Gamdl `4.x` · Entorno principal: openSUSE Tumbleweed en WSL.
 
 ## Qué hace
 
@@ -92,7 +92,7 @@ El programa ya no crea copias de seguridad permanentes. Durante cada cambio cons
 
 El LOG predeterminado es `/mnt/d/Pruebas/.lyrics-retagger.log` (o `<directory>/.lyrics-retagger.log` si eliges otra carpeta). Es acumulativo: cada ejecución agrega una nueva sección con fecha y hora. Puedes elegir otra ubicación mediante `--log-file PATH`.
 
-El LOG registra por pista el `cnID`, título, artista, ISRC, `hasLyrics`, estado y forma de la respuesta del endpoint, presencia/tamaño del TTML, marcas de tiempo válidas, resultado de `©lyr`, hashes SHA-256 de `mdat`, errores y resumen de ejecución. No registra el texto de las letras, TTML completo, tokens, cookies ni contraseñas.
+El LOG registra por pista el `cnID`, título, artista, ISRC, `hasLyrics`, estado y forma de las respuestas de ambos endpoints (`standard` y `syllable`), presencia/tamaño del TTML, marcas de tiempo válidas, resultado de `©lyr`, hashes SHA-256 de `mdat`, errores y resumen de ejecución. No registra el texto de las letras, TTML completo, tokens, cookies ni contraseñas.
 
 Para revisar las entradas de la última pista omitida, por ejemplo:
 
@@ -124,6 +124,14 @@ Puedes seleccionar cualquier otra carpeta mediante `--directory`; `/mnt/d/Prueba
 | `--no-recursive` | Busca únicamente en la carpeta indicada. | — |
 | `--log-file PATH` | Ubicación alternativa del LOG acumulativo. | `<directory>/.lyrics-retagger.log` |\n| `--apply` | Escribe los cambios después de verificar el archivo temporal. | Desactivado |
 | `--version` | Muestra la versión del programa. | — |
+
+## Recuperación de letras sincronizadas
+
+El actualizador primero consulta el endpoint estándar de Gamdl (`Song.get_lyrics(syllable=False)`). Si la respuesta no contiene marcas de tiempo para todas las líneas, o no devuelve un recurso de letras, intenta automáticamente el endpoint de letras con sincronización por palabra/sílaba (`Song.get_lyrics(syllable=True)`).
+
+Aunque la segunda fuente pueda contener tiempos por palabra o sílaba, el programa la convierte a **LRC estándar por línea**: utiliza el primer instante temporal de cada línea. No escribe el formato enhanced-LRC. El LOG identifica qué endpoint produjo el resultado mediante `LYRICS_READY endpoint=standard` o `LYRICS_READY endpoint=syllable`.
+
+Si ninguno de los dos endpoints produce una línea de tiempo completa, la pista se omite. Un TTML local homónimo se inspecciona para diagnóstico, pero no se aplica automáticamente.
 
 ## Detalles y limitaciones de esta versión
 
